@@ -122,6 +122,7 @@ namespace SortingStation
         public RectTransform Viewport => viewport;
         public RectTransform SkyEffectsLayer => skyEffectsLayer != null ? skyEffectsLayer : viewport;
         public RectTransform HorizonEffectsLayer => horizonEffectsLayer != null ? horizonEffectsLayer : viewport;
+        public bool DrawsOwnSky => false;
 
         private void OnDestroy()
         {
@@ -144,6 +145,11 @@ namespace SortingStation
             if (mountainBridge != null && season.mountainsLeft != null) SetMountainBridgeSprite(mountainBridge, season.mountainsLeft);
             if (background != null) background.color = season.skyTint;
             RefreshActiveSeasonSprites();
+        }
+
+        public void SetDayTime(float time01)
+        {
+            // The 2.5D view shows the sun and moon through the journey's 2D sky overlays.
         }
 
         public void SetAtmosphere(Color sky, Color tint)
@@ -568,7 +574,7 @@ namespace SortingStation
 
         private static Material AddMountainFeather(Image image, float direction)
         {
-            Shader shader = Shader.Find("SortingStation/UI/MountainFeather");
+            Shader shader = CabShaders.MountainFeather;
             if (image == null || shader == null) return null;
             Material material = new Material(shader)
             {

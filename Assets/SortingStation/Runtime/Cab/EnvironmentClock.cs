@@ -31,16 +31,28 @@ namespace SortingStation
         }
 
         public float Night01 => Mathf.Clamp01(1f - Daylight01);
+        public float Daylight01 => Daylight(Time01);
 
-        public float Daylight01
+        // Shared by the 2D overlays and the 3D sky so both show the same sun and moon.
+        private const float Sunrise = 0.08f;
+        private const float Sunset = 0.86f;
+
+        public static float Daylight(float time01)
         {
-            get
-            {
-                float rise = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.08f, 0.25f, Time01));
-                float set = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.68f, 0.86f, Time01));
-                return Mathf.Min(rise, set);
-            }
+            float rise = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(Sunrise, 0.25f, time01));
+            float set = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.68f, Sunset, time01));
+            return Mathf.Min(rise, set);
         }
+
+        /// <summary>0 at sunrise, 1 at sunset; clamped outside the day.</summary>
+        public static float SunTravel(float time01) => Mathf.Clamp01(Mathf.InverseLerp(Sunrise, Sunset, time01));
+
+        /// <summary>Height of the sun's path: 0 on the horizon and all night, 1 at noon.</summary>
+        public static float SunArc(float time01) => Mathf.Max(0f, Mathf.Sin(SunTravel(time01) * Mathf.PI));
+
+        /// <summary>0 at sunset, 1 at the next sunrise.</summary>
+        public static float MoonTravel(float time01) =>
+            Mathf.Clamp01(Mathf.Repeat(time01 - Sunset, 1f) / (1f - Sunset + Sunrise));
 
         public Color SkyColor
         {

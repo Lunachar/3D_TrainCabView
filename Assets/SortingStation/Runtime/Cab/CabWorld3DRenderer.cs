@@ -29,14 +29,20 @@ namespace SortingStation
         private Renderer[] nativeMountains;
         private bool nativeMountainsUseTexture;
         private Renderer[] nativeStars;
-        private float nativeSkyTime = 0.18f;
+        // Set every frame by the journey's EnvironmentClock; advances on its own only when the
+        // renderer runs without a journey (previews and tests).
+        private float dayTime01 = 0.30f;
+        private bool dayTimeProvided;
+        private const float StandaloneDaySeconds = 720f;
         private WeatherType nativeWeather = WeatherType.Clear;
         private Transform routeRoot;
         private Cab3DRouteAuthoring authoring;
         private readonly List<Cab3DInteractiveObject> interactives = new List<Cab3DInteractiveObject>();
         private float crossingDistance = 385f;
         private Color atmosphereTint = Color.clear;
-        private float previousShadowDistance = -1f;
+        // The ride switches to the URP asset of the chosen profile and restores the previous one.
+        private UnityEngine.Rendering.RenderPipelineAsset previousPipeline;
+        private bool pipelineOverridden;
 
         public event Action<RouteSegmentDefinition> SegmentChanged;
         public event Action<CabAmbientSoundRequest> AmbientSoundRequested;
@@ -49,6 +55,7 @@ namespace SortingStation
         public RectTransform Viewport => viewport;
         public RectTransform SkyEffectsLayer => skyLayer != null ? skyLayer : viewport;
         public RectTransform HorizonEffectsLayer => horizonLayer != null ? horizonLayer : viewport;
+        public bool DrawsOwnSky => true;
 
         public static bool ShouldShowNativeSun(bool badWeather, float sunArc, bool isInsideTunnel)
         {
@@ -126,6 +133,12 @@ namespace SortingStation
             if (season != null) authoring?.ApplySeason(season.season);
         }
 
+        public void SetDayTime(float time01)
+        {
+            dayTime01 = Mathf.Repeat(time01, 1f);
+            dayTimeProvided = true;
+        }
+
         public void SetAtmosphere(Color sky, Color tint)
         {
             atmosphereTint = tint;
@@ -179,10 +192,12 @@ namespace SortingStation
 
         private void BuildCameraAndLight()
         {
-            if (settings != null && previousShadowDistance < 0f)
+            UnityEngine.Rendering.RenderPipelineAsset profilePipeline = settings != null ? settings.Pipeline(preferences.cabWorldQuality) : null;
+            if (profilePipeline != null && !pipelineOverridden)
             {
-                previousShadowDistance = QualitySettings.shadowDistance;
-                QualitySettings.shadowDistance = settings.ShadowDistance(preferences.cabWorldQuality);
+                previousPipeline = QualitySettings.renderPipeline;
+                QualitySettings.renderPipeline = profilePipeline;
+                pipelineOverridden = true;
             }
             GameObject cameraObject = new GameObject("CabWorld3DCamera");
             cameraObject.transform.SetParent(transform, false);
@@ -234,7 +249,7 @@ namespace SortingStation
             nativeSkyRoot.localPosition = Vector3.zero;
 
             Texture2D distantHills = Resources.Load<Texture2D>("Cab3D/DistantHills_v1");
-            Shader distantLayerShader = Shader.Find("Unlit/Transparent");
+            Shader distantLayerShader = CabShaders.UnlitTransparent;
             if (distantHills != null && distantLayerShader != null)
             {
                 distantHills.wrapMode = TextureWrapMode.Clamp;
@@ -260,7 +275,7 @@ namespace SortingStation
             }
             else
             {
-                Material mountainMaterial = new Material(Shader.Find("Standard")) { color = new Color(0.23f, 0.31f, 0.36f) };
+                Material mountainMaterial = new Material(CabShaders.Lit) { color = new Color(0.23f, 0.31f, 0.36f) };
                 nativeMountains = new Renderer[7];
                 for (int i = 0; i < nativeMountains.Length; i++)
                 {
@@ -282,7 +297,7 @@ namespace SortingStation
             nativeClouds = new Renderer[8];
             for (int i = 0; i < nativeClouds.Length; i++)
             {
-                bool useCloudAtlas = cloudAtlas != null && Shader.Find("Unlit/Transparent") != null;
+                bool useCloudAtlas = cloudAtlas != null && CabShaders.UnlitTransparent != null;
                 GameObject cloud = GameObject.CreatePrimitive(useCloudAtlas ? PrimitiveType.Quad : PrimitiveType.Sphere);
                 cloud.name = "DistantCloud_" + i;
                 cloud.transform.SetParent(nativeSkyRoot, false);
@@ -296,7 +311,7 @@ namespace SortingStation
                     // Quads face toward the cab camera and crop one of the atlas's six cloud
                     // silhouettes. The transparent margins keep neighbouring cells from bleeding.
                     cloud.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                    Material cloudMaterial = new Material(Shader.Find("Unlit/Transparent"))
+                    Material cloudMaterial = new Material(CabShaders.UnlitTransparent)
                     {
                         name = "DistantCloudMaterial_" + i,
                         mainTexture = cloudAtlas,
@@ -310,7 +325,7 @@ namespace SortingStation
                 }
                 else
                 {
-                    nativeClouds[i].sharedMaterial = new Material(Shader.Find("Standard"))
+                    nativeClouds[i].sharedMaterial = new Material(CabShaders.Lit)
                     {
                         name = "DistantCloudMaterialFallback_" + i,
                         color = new Color(0.82f, 0.86f, 0.88f)
@@ -321,7 +336,7 @@ namespace SortingStation
                 Destroy(cloud.GetComponent<Collider>());
             }
 
-            Material sunMaterial = new Material(Shader.Find("Standard")) { color = new Color(1f, 0.68f, 0.24f) };
+            Material sunMaterial = new Material(CabShaders.Lit) { color = new Color(1f, 0.68f, 0.24f) };
             GameObject nativeSun = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             nativeSun.name = "MovingSun";
             nativeSun.transform.SetParent(nativeSkyRoot, false);
@@ -338,12 +353,12 @@ namespace SortingStation
             nativeMoon.transform.localScale = Vector3.one * 2.25f;
             nativeMoonDisc = nativeMoon.transform;
             Renderer moonRenderer = nativeMoon.GetComponent<Renderer>();
-            moonRenderer.sharedMaterial = new Material(Shader.Find("Standard")) { color = new Color(0.62f, 0.72f, 0.88f) };
+            moonRenderer.sharedMaterial = new Material(CabShaders.Lit) { color = new Color(0.62f, 0.72f, 0.88f) };
             moonRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             moonRenderer.receiveShadows = false;
             Destroy(nativeMoon.GetComponent<Collider>());
 
-            Shader starShader = Shader.Find("Legacy Shaders/Particles/Additive");
+            Shader starShader = CabShaders.Additive;
             if (starShader != null)
             {
                 Material starMaterial = new Material(starShader) { name = "DistantStars", color = new Color(0.72f, 0.84f, 1f, 0.58f) };
@@ -367,7 +382,7 @@ namespace SortingStation
             // Two inexpensive additive shells give the sun a soft, child-friendly glare when it
             // appears from behind the horizon. Unlike a screen-space flare they remain naturally
             // behind route geometry and cost almost nothing on the tablet profile.
-            Shader glowShader = Shader.Find("Legacy Shaders/Particles/Additive");
+            Shader glowShader = CabShaders.Additive;
             if (glowShader != null)
             {
                 Material glowMaterial = new Material(glowShader)
@@ -397,11 +412,13 @@ namespace SortingStation
         private void UpdateNativeSky(float deltaTime)
         {
             if (nativeSkyRoot == null) return;
-            nativeSkyTime = Mathf.Repeat(nativeSkyTime + Mathf.Max(0f, deltaTime) * 0.0028f, 1f);
-            float arc = Mathf.Sin(nativeSkyTime * Mathf.PI);
+            if (!dayTimeProvided)
+                dayTime01 = Mathf.Repeat(dayTime01 + Mathf.Max(0f, deltaTime) / StandaloneDaySeconds, 1f);
+            float sunTravel = EnvironmentClock.SunTravel(dayTime01);
+            float arc = EnvironmentClock.SunArc(dayTime01);
             bool badWeather = nativeWeather == WeatherType.Rain || nativeWeather == WeatherType.Snow || nativeWeather == WeatherType.Fog;
             bool isInsideTunnel = CurrentSegment != null && CurrentSegment.Type == RouteSegmentType.MountainTunnel;
-            float nightAmount = Mathf.Clamp01((0.24f - arc) / 0.24f);
+            float nightAmount = 1f - EnvironmentClock.Daylight(dayTime01);
             if (worldCamera != null)
             {
                 Color daytime = settings != null ? settings.ClearSky : new Color(0.50f, 0.75f, 0.91f);
@@ -411,7 +428,7 @@ namespace SortingStation
             }
             if (nativeSunDisc != null)
             {
-                nativeSunDisc.localPosition = new Vector3(Mathf.Lerp(-68f, 68f, nativeSkyTime), -4f + arc * 39f, 165f);
+                nativeSunDisc.localPosition = new Vector3(Mathf.Lerp(-68f, 68f, sunTravel), -4f + arc * 39f, 165f);
                 bool sunVisible = ShouldShowNativeSun(badWeather, arc, isInsideTunnel);
                 nativeSunDisc.gameObject.SetActive(sunVisible);
                 float horizonGlow = Mathf.Clamp01(1f - arc * 2.6f);
@@ -420,7 +437,7 @@ namespace SortingStation
             }
             if (nativeMoonDisc != null)
             {
-                nativeMoonDisc.localPosition = new Vector3(Mathf.Lerp(62f, -62f, nativeSkyTime), 9f + nightAmount * 20f, 164f);
+                nativeMoonDisc.localPosition = new Vector3(Mathf.Lerp(62f, -62f, EnvironmentClock.MoonTravel(dayTime01)), 9f + nightAmount * 20f, 164f);
                 nativeMoonDisc.gameObject.SetActive(!badWeather && !isInsideTunnel && nightAmount > 0.035f);
             }
             if (nativeStars != null)
@@ -431,7 +448,7 @@ namespace SortingStation
             }
             if (sun != null)
             {
-                sun.transform.rotation = Quaternion.Euler(18f + arc * 50f, Mathf.Lerp(-68f, 62f, nativeSkyTime), 0f);
+                sun.transform.rotation = Quaternion.Euler(18f + arc * 50f, Mathf.Lerp(-68f, 62f, sunTravel), 0f);
                 sun.intensity = Mathf.Lerp(0.38f, settings != null ? settings.SunlightIntensity : 0.86f, arc) * (badWeather ? 0.44f : 1f) * Mathf.Lerp(1f, 0.2f, TunnelBlend);
             }
             if (nativeClouds != null)
@@ -567,10 +584,10 @@ namespace SortingStation
                 renderTexture.Release();
                 Destroy(renderTexture);
             }
-            if (previousShadowDistance >= 0f)
+            if (pipelineOverridden)
             {
-                QualitySettings.shadowDistance = previousShadowDistance;
-                previousShadowDistance = -1f;
+                QualitySettings.renderPipeline = previousPipeline;
+                pipelineOverridden = false;
             }
         }
     }

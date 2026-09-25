@@ -395,11 +395,7 @@ namespace SortingStation
 
         private static Material Material(string name, Color color, float metallic, float smoothness)
         {
-            Shader shader = Shader.Find("Standard") ?? Shader.Find("Diffuse");
-            Material material = new Material(shader) { name = name, color = color };
-            material.SetFloat("_Metallic", metallic);
-            material.SetFloat("_Glossiness", smoothness);
-            return material;
+            return CabShaders.CreateLit(name, color, smoothness, metallic);
         }
     }
 }

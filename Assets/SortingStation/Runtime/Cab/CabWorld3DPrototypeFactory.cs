@@ -108,7 +108,7 @@ namespace SortingStation
             // Keep a restrained blue-grey highlight instead; the continuous dark web below
             // still gives the rail a believable metal profile.
             Material railHead = Material("RailHead", new Color(0.31f, 0.34f, 0.35f));
-            railHead.SetFloat("_Glossiness", 0.28f);
+            CabShaders.SetSmoothness(railHead, 0.28f);
             Material wood = Material("SleeperWood", new Color(0.24f, 0.13f, 0.065f));
             Material concreteSleeper = Material("SleeperConcrete", new Color(0.40f, 0.39f, 0.35f));
             Material leaves = Material("Leaves", new Color(0.18f, 0.44f, 0.14f));
@@ -422,7 +422,7 @@ namespace SortingStation
 
         private static Material BillboardMaterial(string name, Texture2D atlas, Vector2 offset)
         {
-            Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Transparent");
+            Shader shader = CabShaders.Sprite;
             Material material = new Material(shader) { name = name, mainTexture = atlas };
             material.mainTextureScale = new Vector2(0.5f, 0.5f);
             material.mainTextureOffset = offset;
@@ -500,7 +500,7 @@ namespace SortingStation
             Quaternion heading = Cab3DTrackMath.Heading(distance, cycle);
             Vector3 lateralOffset = heading * new Vector3(lateral, 0f, 0f);
             Vector3 point = Cab3DTrackMath.Point(distance, cycle) + lateralOffset + Vector3.up * height;
-            Shader shader = Shader.Find("Unlit/Texture") ?? Shader.Find("Sprites/Default") ?? Shader.Find("Standard");
+            Shader shader = CabShaders.UnlitTexture;
             Material material = new Material(shader) { name = name + "_Material", mainTexture = texture };
             GameObject view = Primitive(root, PrimitiveType.Quad, name, point, new Vector3(34f, 19.125f, 1f), material);
             view.transform.rotation = Quaternion.LookRotation(-lateralOffset.normalized, Vector3.up);
@@ -1535,10 +1535,7 @@ namespace SortingStation
 
         private static Material Material(string name, Color color)
         {
-            Shader shader = Shader.Find("Standard") ?? Shader.Find("Diffuse");
-            Material material = new Material(shader) { name = name, color = color };
-            material.SetFloat("_Glossiness", 0.12f);
-            return material;
+            return CabShaders.CreateLit(name, color);
         }
 
         private static Material CreateAsphaltMaterial(string name, Vector2 tileScale)
@@ -1558,7 +1555,7 @@ namespace SortingStation
                 material.mainTexture = texture;
                 material.mainTextureScale = tileScale;
             }
-            material.SetFloat("_Glossiness", glossiness);
+            CabShaders.SetSmoothness(material, glossiness);
             return material;
         }
     }

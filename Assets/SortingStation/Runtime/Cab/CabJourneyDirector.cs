@@ -226,7 +226,7 @@ namespace SortingStation
 
         private static Material CreateRainWiperMaterial(string name, Image image)
         {
-            Shader shader = Shader.Find("SortingStation/UI/RainWiper");
+            Shader shader = CabShaders.RainWiper;
             if (shader == null || image == null) return null;
             Material material = new Material(shader)
             {
@@ -311,6 +311,9 @@ namespace SortingStation
             Color weatherTint = profile != null ? profile.tint : Color.clear;
             weatherTint.a *= weather.Transition01;
             world.SetAtmosphere(sky, weatherTint);
+            world.SetDayTime(clock.Time01);
+            // A 3D world draws its own sun and moon from the same clock; the 2D ones would double them.
+            bool uiSky = !world.DrawsOwnSky;
             bool isInsideTunnel = world.CurrentSegment != null && world.CurrentSegment.Type == RouteSegmentType.MountainTunnel;
             if (sun != null)
             {
@@ -319,11 +322,11 @@ namespace SortingStation
                 Vector2 sunPosition = new Vector2(Mathf.Lerp(0.12f, 0.88f, clock.Time01), Mathf.Lerp(0.54f, 0.86f, arc));
                 sun.rectTransform.anchorMin = sun.rectTransform.anchorMax = sunPosition;
                 sun.rectTransform.sizeDelta = new Vector2(110f, 110f);
-                bool showSun = ShouldShowUiSun(sunWeatherVisibility, isInsideTunnel);
+                bool showSun = uiSky && ShouldShowUiSun(sunWeatherVisibility, isInsideTunnel);
                 sun.color = new Color(1f, 0.90f, 0.54f, clock.Daylight01 * 0.85f * (showSun ? 1f : 0f));
                 UpdateSunGlare(sunPosition, showSun);
             }
-            if (moon != null) moon.color = new Color(0.84f, 0.90f, 1f, clock.Night01 * 0.86f * (isInsideTunnel ? 0f : 1f));
+            if (moon != null) moon.color = new Color(0.84f, 0.90f, 1f, clock.Night01 * 0.86f * (isInsideTunnel || !uiSky ? 0f : 1f));
             if (nightShade != null) nightShade.color = new Color(0.025f, 0.05f, 0.12f, clock.Night01 * 0.46f);
             if (fog != null)
             {

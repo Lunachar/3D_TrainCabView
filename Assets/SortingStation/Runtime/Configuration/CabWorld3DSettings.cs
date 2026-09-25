@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace SortingStation
 {
@@ -7,6 +8,21 @@ namespace SortingStation
     {
         [Header("Editable route")]
         [SerializeField] private GameObject prototypeRoutePrefab;
+
+        [Header("Rendering (URP)")]
+        [Tooltip("URP asset used by the \"3D: быстрее\" profile.")]
+        [SerializeField] private RenderPipelineAsset performancePipeline;
+        [Tooltip("URP asset used by the \"3D: качество\" profile.")]
+        [SerializeField] private RenderPipelineAsset balancedPipeline;
+        // Shaders for materials created from code. Referencing them here keeps them in player
+        // builds; a shader that is only looked up by name can be stripped from Android builds.
+        [SerializeField] private Shader litShader;
+        [SerializeField] private Shader unlitTextureShader;
+        [SerializeField] private Shader unlitTransparentShader;
+        [SerializeField] private Shader spriteShader;
+        [SerializeField] private Shader additiveShader;
+        [SerializeField] private Shader rainWiperShader;
+        [SerializeField] private Shader mountainFeatherShader;
 
         [Header("Render texture")]
         [SerializeField] [Min(640)] private int performanceWidth = 960;
@@ -48,6 +64,14 @@ namespace SortingStation
         [SerializeField] private bool showCockpitWindowShellInHybrid;
 
         public GameObject PrototypeRoutePrefab => prototypeRoutePrefab;
+        public RenderPipelineAsset Pipeline(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performancePipeline : balancedPipeline;
+        public Shader LitShader => litShader;
+        public Shader UnlitTextureShader => unlitTextureShader;
+        public Shader UnlitTransparentShader => unlitTransparentShader;
+        public Shader SpriteShader => spriteShader;
+        public Shader AdditiveShader => additiveShader;
+        public Shader RainWiperShader => rainWiperShader;
+        public Shader MountainFeatherShader => mountainFeatherShader;
         public int RenderWidth(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performanceWidth : balancedWidth;
         public int RenderHeight(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performanceHeight : balancedHeight;
         public float CameraFieldOfView => cameraFieldOfView;
@@ -69,6 +93,21 @@ namespace SortingStation
 
 #if UNITY_EDITOR
         public void ConfigurePrototype(GameObject prefab) => prototypeRoutePrefab = prefab;
+
+        public void ConfigureRendering(RenderPipelineAsset performance, RenderPipelineAsset balanced,
+            Shader lit, Shader unlitTexture, Shader unlitTransparent, Shader sprite, Shader additive,
+            Shader rainWiper, Shader mountainFeather)
+        {
+            performancePipeline = performance;
+            balancedPipeline = balanced;
+            litShader = lit;
+            unlitTextureShader = unlitTexture;
+            unlitTransparentShader = unlitTransparent;
+            spriteShader = sprite;
+            additiveShader = additive;
+            rainWiperShader = rainWiper;
+            mountainFeatherShader = mountainFeather;
+        }
 #endif
     }
 }

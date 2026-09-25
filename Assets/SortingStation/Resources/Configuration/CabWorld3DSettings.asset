@@ -13,6 +13,15 @@ MonoBehaviour:
   m_Name: CabWorld3DSettings
   m_EditorClassIdentifier: 
   prototypeRoutePrefab: {fileID: 8053019197673458400, guid: 9aeee18927d1d8d49970f0ca2fd2ea7d, type: 3}
+  performancePipeline: {fileID: 11400000, guid: 6326bdd09e7021149958bbf9774de1d0, type: 2}
+  balancedPipeline: {fileID: 11400000, guid: 11e71c46161718c4ebf64206e9dee63a, type: 2}
+  litShader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
+  unlitTextureShader: {fileID: 10752, guid: 0000000000000000f000000000000000, type: 0}
+  unlitTransparentShader: {fileID: 10750, guid: 0000000000000000f000000000000000, type: 0}
+  spriteShader: {fileID: 10753, guid: 0000000000000000f000000000000000, type: 0}
+  additiveShader: {fileID: 200, guid: 0000000000000000f000000000000000, type: 0}
+  rainWiperShader: {fileID: 4800000, guid: 3fbbf8df37072c447a05a15d061e0498, type: 3}
+  mountainFeatherShader: {fileID: 4800000, guid: e5b92edb964d8ba4c849d72b333e1aac, type: 3}
   performanceWidth: 960
   performanceHeight: 384
   balancedWidth: 1280
