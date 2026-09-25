@@ -303,7 +303,7 @@ namespace SortingStation
         public float NextStopAfter(float distance, out CabStationDefinition station)
         {
             float stop = planner.NextStopAfter(distance, out WorldChunkPlan plan);
-            station = stop >= 0f ? CabStationNetwork.AtSequence(plan.StationNumber) : null;
+            station = stop >= 0f ? WorldPlanner.StationDefinition(plan) : null;
             return stop;
         }
 

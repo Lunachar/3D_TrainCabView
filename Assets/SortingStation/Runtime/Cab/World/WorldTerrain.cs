@@ -180,12 +180,26 @@ namespace SortingStation
             float mountainRamp = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(CorridorHalfWidth, CorridorHalfWidth + Mathf.Lerp(70f, 12f, approach), ax));
             float mountain = p.Mountain * (30f + 70f * n2 + 12f * n1) * mountainRamp;
             float height = ramp * Mathf.Max(-1.5f, hills) + mountain;
-            if (insideTunnel) height = Mathf.Max(height, 14f + 5f * n1 + 0.3f * ax);
+            if (insideTunnel)
+            {
+                // Over a cavern hall the mountain has to be much thicker than over a plain bore.
+                float cover = Mathf.Lerp(14f + 5f * n1 + 0.3f * ax, 34f + 6f * n1 + 0.25f * ax, HallWeight(d));
+                height = Mathf.Max(height, cover);
+            }
             height -= RiverDepth(d, x);
             return height + GroundOffset;
         }
 
         public bool InsideTunnel(float d) => planner.TryGetTunnel(d, out _, out _);
+
+        /// <summary>0 in an ordinary bore, 1 inside a cavern hall; the cave widens over 30 m at each end.</summary>
+        public float HallWeight(float d)
+        {
+            WorldChunkPlan plan = planner.At(d);
+            if (!plan.CaveHall) return 0f;
+            float inside = Mathf.Min(d - plan.Start, plan.End - d);
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(4f, 34f, inside));
+        }
 
         /// <summary>Ground layer weights: R soil, G forest floor, B gravel/paving, A crops.</summary>
         public Color Layers(float d, float x)

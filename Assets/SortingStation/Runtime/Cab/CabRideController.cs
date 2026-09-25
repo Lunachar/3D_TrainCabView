@@ -156,7 +156,9 @@ namespace SortingStation
             UpdateVigilance();
             RouteSegmentType segment = world != null && world.CurrentSegment != null ? world.CurrentSegment.Type : RouteSegmentType.Meadow;
             bool isInsideTunnel = segment == RouteSegmentType.MountainTunnel;
-            stationStop?.Step(motion.Speed01, dt, segment, isInsideTunnel,
+            // The endless world knows its stops exactly, including halts deep inside a mountain.
+            bool stationBlockedByTunnel = isInsideTunnel && !(world is CabWorld3DRenderer { Streamed: not null });
+            stationStop?.Step(motion.Speed01, dt, segment, stationBlockedByTunnel,
                 vigilanceAlarm || automaticStop, world != null ? world.SegmentProgress : -1f,
                 world != null ? world.Distance : 0f, world is CabWorld3DRenderer hybridRoute ? hybridRoute.CycleLength : 0f);
             float manualBrake = pointerBrake ? pointerBrakeStrength : keyboardBrake || Time.unscaledTime < brakePulseUntil ? 1f : 0f;

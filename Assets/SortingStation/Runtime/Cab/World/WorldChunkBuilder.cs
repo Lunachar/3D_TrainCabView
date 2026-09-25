@@ -62,6 +62,7 @@ namespace SortingStation
             random = new System.Random(plan.Seed);
             mask = new PlacementMask(plan.Start, plan.End);
             structureZones.Clear();
+            extraTrees.Clear();
             meshes = new WorldMeshSet();
 
             GameObject root = new GameObject("Chunk_" + plan.Index + "_" + plan.Kind);
@@ -239,6 +240,11 @@ namespace SortingStation
             List<Vector2> cardUvs = new List<Vector2>(), nearCardUvs = new List<Vector2>();
             List<int> cardTriangles = new List<int>(), nearCardTriangles = new List<int>();
 
+            // Planted trees (orchards) first, then the natural ones.
+            foreach ((float d, float x, CabTreeSpecies species, float scale) tree in extraTrees)
+                PlaceTree(near, tree.d, tree.x, tree.species, tree.scale, nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles,
+                    cardVertices, cardNormals, cardUvs, cardTriangles);
+
             // Candidate spots on a jittered grid in route coordinates; the grid widens away from the track.
             float x = 10f;
             while (x < MaxTreeReach)
@@ -255,24 +261,8 @@ namespace SortingStation
                         float radius = species == CabTreeSpecies.Bush ? 1f : 2.2f;
                         if (!mask.IsFree(pd, px, radius)) continue;
                         if (terrain.RiverDepth(pd, px) > 0.8f) continue;
-                        bool overBore = terrain.InsideTunnel(pd);
-                        float h = terrain.Height(pd, px, overBore);
-                        Vector3 rootPosition = P(pd, px, h - 0.05f);
-                        int variant = random.Next(0, CabTreeFactory.VariantCount);
-                        float yaw = Range(0f, 360f);
-                        if (Mathf.Abs(px - WorldTerrain.CorridorCentre) < NearTreeReach)
-                        {
-                            Mesh treeMesh = CabTreeFactory.GetMesh(species, variant, CabTreeFactory.IsLeafless(species, season));
-                            Material[] materials = CabTreeFactory.GetMaterials(species, season);
-                            Matrix4x4 matrix = Matrix4x4.TRS(rootPosition, Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale);
-                            near.For(materials[0], 1f, true).Append(treeMesh, 0, matrix);
-                            near.For(materials[1], 1f, true).Append(treeMesh, 1, matrix);
-                            TreeImpostors.AddCard(nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles, rootPosition, species, variant, scale, yaw);
-                        }
-                        else
-                        {
-                            TreeImpostors.AddCard(cardVertices, cardNormals, cardUvs, cardTriangles, rootPosition, species, variant, scale, yaw);
-                        }
+                        PlaceTree(near, pd, px, species, scale, nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles,
+                            cardVertices, cardNormals, cardUvs, cardTriangles);
                     }
                 }
                 x += stepX;
@@ -286,6 +276,30 @@ namespace SortingStation
             EmitCards(root, "TreeCards", cardVertices, cardNormals, cardUvs, cardTriangles);
             BuildGrass(root);
             if (chunk.NearCards != null) chunk.NearCards.SetActive(false);
+        }
+
+        private void PlaceTree(WorldMeshSet near, float pd, float px, CabTreeSpecies species, float scale,
+            List<Vector3> nearCardVertices, List<Vector3> nearCardNormals, List<Vector2> nearCardUvs, List<int> nearCardTriangles,
+            List<Vector3> cardVertices, List<Vector3> cardNormals, List<Vector2> cardUvs, List<int> cardTriangles)
+        {
+            bool overBore = terrain.InsideTunnel(pd);
+            float h = terrain.Height(pd, px, overBore);
+            Vector3 rootPosition = P(pd, px, h - 0.05f);
+            int variant = random.Next(0, CabTreeFactory.VariantCount);
+            float yaw = Range(0f, 360f);
+            if (Mathf.Abs(px - WorldTerrain.CorridorCentre) < NearTreeReach)
+            {
+                Mesh treeMesh = CabTreeFactory.GetMesh(species, variant, CabTreeFactory.IsLeafless(species, season));
+                Material[] materials = CabTreeFactory.GetMaterials(species, season);
+                Matrix4x4 matrix = Matrix4x4.TRS(rootPosition, Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale);
+                near.For(materials[0], 1f, true).Append(treeMesh, 0, matrix);
+                near.For(materials[1], 1f, true).Append(treeMesh, 1, matrix);
+                TreeImpostors.AddCard(nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles, rootPosition, species, variant, scale, yaw);
+            }
+            else
+            {
+                TreeImpostors.AddCard(cardVertices, cardNormals, cardUvs, cardTriangles, rootPosition, species, variant, scale, yaw);
+            }
         }
 
         private GameObject EmitCards(Transform root, string name, List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs, List<int> triangles)

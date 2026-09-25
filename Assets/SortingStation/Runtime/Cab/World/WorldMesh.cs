@@ -123,6 +123,21 @@ namespace SortingStation
             }
         }
 
+        /// <summary>Cone from a base circle to a tip (stalactites, stalagmites, roofs of tents and towers).</summary>
+        public void AddCone(Vector3 baseCentre, Vector3 tip, float radius, int segments)
+        {
+            Vector3 axis = (tip - baseCentre).normalized;
+            Quaternion basis = Quaternion.FromToRotation(Vector3.up, axis);
+            for (int i = 0; i < segments; i++)
+            {
+                float a0 = i / (float)segments * Mathf.PI * 2f, a1 = (i + 1) / (float)segments * Mathf.PI * 2f;
+                Vector3 p0 = baseCentre + basis * new Vector3(Mathf.Cos(a0), 0f, Mathf.Sin(a0)) * radius;
+                Vector3 p1 = baseCentre + basis * new Vector3(Mathf.Cos(a1), 0f, Mathf.Sin(a1)) * radius;
+                Vector3 outward = ((p0 + p1) * 0.5f - baseCentre).normalized + axis * 0.3f;
+                AddTriangle(p0, p1, tip, outward.normalized);
+            }
+        }
+
         public void Append(Mesh mesh, int subMesh, Matrix4x4 transform)
         {
             int start = Vertices.Count;

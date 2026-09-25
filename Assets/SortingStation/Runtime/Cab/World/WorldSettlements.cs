@@ -58,28 +58,113 @@ namespace SortingStation
 
         private void AddNeonSign(float d, float x, float y, bool vertical)
         {
+            // Signs come in several fashions: neon letters, light boxes, LED screens, round logos, vertical neon.
+            int style = vertical ? 4 : random.Next(0, 4);
             int colour = random.Next(0, WorldMaterials.NeonColours.Length);
+            Color neon = WorldMaterials.NeonColours[colour];
             string name = ShopNames[random.Next(0, ShopNames.Length)];
             Quaternion facing = FacingTrack(d, x);
             float towardTrack = x < WorldTerrain.CorridorCentre ? 1f : -1f;
             Vector3 position = P(d, x + towardTrack * 0.35f, y);
-            if (vertical)
+            Vector3 front = facing * Vector3.back;
+            Material back = WorldMaterials.Plain("SignBack", new Color(0.05f, 0.05f, 0.06f), 0.5f);
+            switch (style)
             {
-                string column = string.Join("\n", name.ToCharArray());
-                float height = name.Length * 0.9f + 0.6f;
-                meshes.For(WorldMaterials.Plain("SignBack", new Color(0.05f, 0.05f, 0.06f), 0.5f), 1f)
-                    .AddBox(position, new Vector3(1.1f, height, 0.2f), facing);
-                meshes.For(WorldMaterials.Neon(colour), 1f).AddBox(position, new Vector3(1.25f, height + 0.15f, 0.12f), facing);
-                AddText(column, position + facing * Vector3.back * 0.14f, facing, WorldMaterials.NeonColours[colour], 0.62f);
+                case 0:
+                {
+                    // Neon letters on a dark board, framed by a tube.
+                    float width = name.Length * 0.75f + 1f;
+                    meshes.For(back, 1f).AddBox(position, new Vector3(width, 1.2f, 0.2f), facing);
+                    WorldMesh tube = meshes.For(WorldMaterials.Neon(colour), 1f);
+                    tube.AddBox(position + Vector3.down * 0.62f + front * 0.1f, new Vector3(width, 0.06f, 0.06f), facing);
+                    tube.AddBox(position + Vector3.up * 0.62f + front * 0.1f, new Vector3(width, 0.06f, 0.06f), facing);
+                    AddText(name, position + front * 0.14f, facing, neon, 0.8f);
+                    break;
+                }
+                case 1:
+                {
+                    // A glowing white light box with dark letters.
+                    float width = name.Length * 0.7f + 1.2f;
+                    meshes.For(WorldMaterials.Glow("LightBox", new Color(0.95f, 0.95f, 0.9f), 0.6f), 1f).AddBox(position, new Vector3(width, 1.3f, 0.35f), facing);
+                    meshes.For(WorldMaterials.Neon(colour), 1f).AddBox(position + Vector3.down * 0.7f, new Vector3(width + 0.1f, 0.12f, 0.4f), facing);
+                    AddText(name, position + front * 0.2f, facing, new Color(0.08f, 0.08f, 0.1f), 0.8f);
+                    break;
+                }
+                case 2:
+                {
+                    // An LED screen cycling through colours, with white lettering.
+                    Material screen = CabPbrMaterials.Emissive("LedScreen", new Color(0.05f, 0.05f, 0.05f), neon);
+                    chunk.Materials.Add(screen);
+                    GameObject panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    RemoveCollider(panel);
+                    panel.name = "LedScreen";
+                    panel.transform.SetParent(chunk.Root.transform, false);
+                    panel.transform.localPosition = position + Vector3.up * 0.8f;
+                    panel.transform.localRotation = facing;
+                    panel.transform.localScale = new Vector3(4.2f, 2.4f, 0.25f);
+                    panel.GetComponent<Renderer>().sharedMaterial = screen;
+                    panel.AddComponent<ColorCycle>().Configure(screen, (float)random.NextDouble());
+                    meshes.For(back, 1f).AddBox(position + Vector3.up * 0.8f - front * 0.05f, new Vector3(4.5f, 2.7f, 0.2f), facing);
+                    AddText(name, position + Vector3.up * 0.8f + front * 0.16f, facing, Color.white, 0.7f);
+                    break;
+                }
+                default:
+                {
+                    if (style == 3)
+                    {
+                        // A round logo with the name beside it.
+                        meshes.For(WorldMaterials.Neon(colour), 1f).AddCylinder(position - facing * Vector3.right * 1.6f, 0.75f, 0.2f, 18, facing * Quaternion.Euler(90f, 0f, 0f));
+                        AddText(name.Substring(0, 1), position - facing * Vector3.right * 1.6f + front * 0.25f, facing, new Color(0.05f, 0.05f, 0.08f), 0.9f);
+                        AddText(name, position + facing * Vector3.right * (name.Length * 0.3f) + front * 0.05f, facing, neon, 0.7f);
+                        break;
+                    }
+                    string column = string.Join("\n", name.ToCharArray());
+                    float height = name.Length * 0.9f + 0.6f;
+                    meshes.For(back, 1f).AddBox(position, new Vector3(1.1f, height, 0.2f), facing);
+                    meshes.For(WorldMaterials.Neon(colour), 1f).AddBox(position - front * 0.02f, new Vector3(1.25f, height + 0.15f, 0.12f), facing);
+                    AddText(column, position + front * 0.14f, facing, neon, 0.62f);
+                    break;
+                }
             }
-            else
+        }
+
+        /// <summary>A lit shop window with goods on show, and a small crowd of onlookers in front of it.</summary>
+        private void BuildShowWindow(float centre, float wallX, float ground, float side)
+        {
+            float towardTrack = -side;
+            Quaternion r = R(centre);
+            Vector3 normal = r * new Vector3(towardTrack, 0f, 0f);
+            float width = Range(6f, 10f);
+            Vector3 glassCentre = P(centre, wallX + towardTrack * 0.06f, ground + 2.2f);
+            Vector3 along = r * Vector3.forward * (width * 0.5f), up = Vector3.up * 2f;
+            meshes.For(WorldMaterials.Glow("ShowWindow", new Color(1f, 0.95f, 0.85f), 0.55f), 1f)
+                .AddQuad(glassCentre - along - up, glassCentre + along - up, glassCentre + along + up, glassCentre - along + up, normal);
+            meshes.For(WorldMaterials.Plain("WindowFrameDark", new Color(0.12f, 0.12f, 0.13f), 0.6f, 0.6f), 1f)
+                .AddBox(glassCentre + up + normal * 0.1f, new Vector3(0.25f, 0.25f, width + 0.3f), r);
+            // Goods and mannequins behind the glass: coloured shapes on stands.
+            for (int i = 0; i < 4; i++)
             {
-                float width = name.Length * 0.75f + 1f;
-                meshes.For(WorldMaterials.Plain("SignBack", new Color(0.05f, 0.05f, 0.06f), 0.5f), 1f)
-                    .AddBox(position, new Vector3(width, 1.2f, 0.2f), facing);
-                meshes.For(WorldMaterials.Neon(colour), 1f).AddBox(position + Vector3.down * 0.66f, new Vector3(width, 0.08f, 0.14f), facing);
-                AddText(name, position + facing * Vector3.back * 0.14f, facing, WorldMaterials.NeonColours[colour], 0.8f);
+                float s = Range(-width * 0.4f, width * 0.4f);
+                Vector3 item = P(centre + s, wallX + towardTrack * 0.25f, ground + Range(0.8f, 2.4f));
+                meshes.For(WorldMaterials.Neon(random.Next(0, WorldMaterials.NeonColours.Length)), 1f)
+                    .AddBox(item, new Vector3(0.1f, Range(0.4f, 1.1f), Range(0.3f, 0.8f)), r);
             }
+            AddPool(P(centre, wallX + towardTrack * 2.5f, ground), 4.5f);
+            // Onlookers facing the window.
+            Transform crowd = new GameObject("Onlookers").transform;
+            crowd.SetParent(chunk.Root.transform, false);
+            int people = random.Next(4, 10);
+            for (int i = 0; i < people; i++)
+            {
+                float s = Range(-width * 0.55f, width * 0.55f);
+                float away = Range(1.2f, 3.6f);
+                Vector3 spot = P(centre + s, wallX + towardTrack * away, ground);
+                Color coat = Color.HSVToRGB((float)random.NextDouble(), Range(0.3f, 0.7f), Range(0.2f, 0.7f));
+                GameObject person = CabWorld3DPrototypeFactory.CreatePassenger(crowd, "Onlooker_" + i, spot, coat, i % 5 == 0, false, false, out _, out _, out _);
+                person.transform.localRotation = r * Quaternion.Euler(0f, (towardTrack > 0f ? -90f : 90f) + Range(-35f, 35f), 0f);
+                TrackMaterials(person);
+            }
+            Block(centre - width, centre + width, wallX + towardTrack * 4f - 1f, wallX + towardTrack * 4f + 1f);
         }
 
         // ---- Roads -----------------------------------------------------------------------------
@@ -262,7 +347,9 @@ namespace SortingStation
                 Vector3 along = r * Vector3.forward * 1.6f, up = Vector3.up * 1.1f;
                 windows.AddQuad(c - along - up, c + along - up, c + along + up, c - along + up, normal);
             }
-            if (Chance(0.7f)) AddNeonSign(centre + Range(-length * 0.3f, length * 0.3f), wallX, ground + 3.6f, false);
+            if (Chance(0.8f)) AddNeonSign(centre + Range(-length * 0.3f, length * 0.3f), wallX, ground + 3.6f, false);
+            // Now and then a big show window draws a crowd.
+            if (Chance(plan.Kind == WorldChunkKind.City ? 0.35f : 0.15f)) BuildShowWindow(centre + Range(-length * 0.2f, length * 0.2f), wallX, ground, side);
         }
 
         // ---- Big city --------------------------------------------------------------------------
@@ -399,7 +486,7 @@ namespace SortingStation
 
         public static string StationName(WorldChunkPlan station)
         {
-            CabStationDefinition definition = CabStationNetwork.AtSequence(station.StationNumber);
+            CabStationDefinition definition = WorldPlanner.StationDefinition(station);
             return definition != null ? definition.DisplayName : "Станция";
         }
 
@@ -427,6 +514,7 @@ namespace SortingStation
                 case StationStyle.Halt: BuildHaltShelter(centre, platformX); break;
                 case StationStyle.Town: BuildTownStation(centre, platformX); break;
                 case StationStyle.Terminal: BuildTerminal(centre, platformX, half); break;
+                case StationStyle.Gnome: BuildHaltShelter(centre, platformX); break;
                 default: BuildVillageStation(centre, platformX); break;
             }
 
@@ -438,6 +526,7 @@ namespace SortingStation
             BuildNameBoards(centre, platformX, terminal);
             BuildPassengers(centre, terminal);
             BuildAttendant(centre);
+            BuildStationEvent(centre);
         }
 
         private void BuildPlatform(float centre, float x, float half, WorldMesh concrete)
@@ -592,36 +681,38 @@ namespace SortingStation
             }
         }
 
+        /// <summary>
+        /// Name boards stand along the back of the platform, parallel to the track and facing it,
+        /// as at real stations: the driver reads them sideways while pulling in, and they never
+        /// hang across the view.
+        /// </summary>
         private void BuildNameBoards(float centre, float platformX, bool terminal)
         {
             string name = StationName(plan);
             WorldMesh steel = meshes.For(WorldMaterials.Steel, 1f, true);
-            foreach (float d in terminal ? new[] { centre - 30f, centre + 2f, centre + 34f } : new[] { centre - 14f, centre + 16f })
+            float backX = platformX - PlatformWidth * 0.5f + 0.35f;
+            float[] places = terminal ? new[] { centre - 32f, centre - 6f, centre + 20f } : new[] { centre - 17f, centre + 9f };
+            foreach (float d in places)
             {
-                Quaternion r = R(d);
-                Vector3 position = P(d, platformX - 1.3f, PlatformHeight + (terminal ? 4.2f : 2.4f));
-                steel.AddBox(position + Vector3.down * 1.2f, new Vector3(0.1f, 2.4f, 0.1f), r);
+                Quaternion facing = R(d) * Quaternion.Euler(0f, -90f, 0f);
+                Vector3 position = P(d, backX, PlatformHeight + 2.6f);
+                foreach (float s2 in new[] { -1.6f, 1.6f })
+                    steel.AddBox(P(d + s2, backX - 0.05f, PlatformHeight + 1.35f), new Vector3(0.09f, 2.7f, 0.09f), R(d));
                 GameObject board = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 board.name = "StationSignBoard";
-                Collider collider = board.GetComponent<Collider>();
-                if (Application.isPlaying) Object.Destroy(collider);
-                else Object.DestroyImmediate(collider);
+                RemoveCollider(board);
                 board.transform.SetParent(chunk.Root.transform, false);
                 board.transform.localPosition = position;
-                board.transform.localRotation = r;
+                board.transform.localRotation = facing;
                 board.GetComponent<Renderer>().sharedMaterial = WorldMaterials.SignBoard;
-                Vector3 forward = r * Vector3.forward;
-                TextMesh front = CabWorld3DPrototypeFactory.CreateStationSignText(chunk.Root.transform, "StationName_" + name, position - forward * 0.06f, r, name);
-                TextMesh back = CabWorld3DPrototypeFactory.CreateStationSignText(chunk.Root.transform, "StationName_Back_" + name, position + forward * 0.06f,
-                    r * Quaternion.Euler(0f, 180f, 0f), name);
-                front.transform.localRotation = r;
-                back.transform.localRotation = r * Quaternion.Euler(0f, 180f, 0f);
+                TextMesh front = CabWorld3DPrototypeFactory.CreateStationSignText(chunk.Root.transform, "StationName_" + name,
+                    position + facing * Vector3.back * 0.06f, facing, name);
+                front.transform.localRotation = facing;
                 board.AddComponent<SignBoardFitter>().Configure(front);
                 chunk.Signs.Add(front);
-                chunk.Signs.Add(back);
                 chunk.SignBoards.Add(board.transform);
-                // A small lamp over the board so the name is readable at night.
-                meshes.For(WorldMaterials.LampGlow, 1f).AddBox(position + Vector3.up * 0.75f + r * Vector3.back * 0.3f, new Vector3(1.2f, 0.06f, 0.12f), r);
+                // A strip light over the board so the name reads at night.
+                meshes.For(WorldMaterials.LampGlow, 1f).AddBox(position + Vector3.up * 0.72f + facing * Vector3.back * 0.25f, new Vector3(2.4f, 0.06f, 0.1f), facing);
             }
         }
 
@@ -635,7 +726,8 @@ namespace SortingStation
             chunk.PlatformFrame = frame;
             int count = plan.Station == StationStyle.Halt ? 3 + random.Next(0, 4)
                 : plan.Station == StationStyle.Village ? 6 + random.Next(0, 7)
-                : plan.Station == StationStyle.Town ? 10 + random.Next(0, 7) : 16 + random.Next(0, 9);
+                : plan.Station == StationStyle.Town ? 10 + random.Next(0, 7)
+                : plan.Station == StationStyle.Gnome ? 5 + random.Next(0, 6) : 16 + random.Next(0, 9);
             for (int i = 0; i < count; i++)
             {
                 float z = Range(-20f, 18f);
@@ -646,6 +738,7 @@ namespace SortingStation
                 GameObject passenger = CabWorld3DPrototypeFactory.CreatePassenger(frame, "Passenger_" + plan.Index + "_" + i, platform, coat,
                     i % 6 == 0, seated, i % 3 == 1, out GameObject umbrella, out Renderer coatRenderer, out Transform[] limbs);
                 passenger.transform.localRotation = Quaternion.Euler(0f, Range(40f, 140f), 0f);
+                if (plan.Station == StationStyle.Gnome) Gnomify(passenger);
                 Cab3DPassengerAgent agent = passenger.AddComponent<Cab3DPassengerAgent>();
                 agent.Configure(platform, door, umbrella, coatRenderer, limbs);
                 passenger.AddComponent<Cab3DInteractiveObject>().Configure("station passenger worker", CabInteractionReaction.Wave);
@@ -674,6 +767,7 @@ namespace SortingStation
             GameObject attendant = CabWorld3DPrototypeFactory.CreatePassenger(frame, "StationAttendant", spot, new Color(0.95f, 0.42f, 0.05f),
                 false, false, false, out _, out _, out _);
             attendant.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            if (plan.Station == StationStyle.Gnome) Gnomify(attendant);
             Transform lantern = new GameObject("Lantern").transform;
             lantern.SetParent(attendant.transform, false);
             lantern.localPosition = new Vector3(-0.42f, 0.95f, -0.25f);

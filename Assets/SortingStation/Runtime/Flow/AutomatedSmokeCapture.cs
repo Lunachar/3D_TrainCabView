@@ -175,8 +175,15 @@ namespace SortingStation
                 ("20-terminal.png", terminal, false, noon),
                 ("21-terminal-night.png", terminal, true, midnight),
                 ("22-halt-night.png", halt, true, midnight),
-                ("23-town-station.png", townStation, false, noon)
+                ("23-town-station.png", townStation, false, noon),
+                ("24-cave.png", Find(p => p.Kind == WorldChunkKind.Tunnel && p.Tunnel == TunnelStyle.Cave && !p.CaveHall && !p.TunnelEntrance, 40f), true, noon),
+                ("25-gnome-hall.png", Find(p => p.CaveHall, 5f), true, noon),
+                ("26-brick-portal.png", Find(p => p.TunnelEntrance && p.Tunnel == TunnelStyle.Brick, WorldPlanner.PortalInset - 55f), false, noon),
+                ("27-station-event.png", Find(p => p.IsStation && p.Event != StationEvent.None, WorldPlanner.PlatformCentre - 20f), false, noon),
+                ("28-station-event-night.png", Find(p => p.IsStation && p.Event != StationEvent.None, WorldPlanner.PlatformCentre - 20f), true, midnight),
+                ("29-concrete-small.png", Find(p => p.Kind == WorldChunkKind.Tunnel && p.Tunnel == TunnelStyle.Concrete && p.Bore == TunnelSize.Small, 60f), true, noon)
             };
+            Debug.Log("SMOKE_EVENT " + planner.At(Find(p => p.IsStation && p.Event != StationEvent.None, 60f)).Event);
             foreach ((string file, float distance, bool lights, float time) in extra)
             {
                 if (cab != null) cab.ConfigureDistancePreview(distance, lights, time);

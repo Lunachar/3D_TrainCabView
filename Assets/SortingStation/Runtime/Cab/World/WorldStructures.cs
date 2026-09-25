@@ -10,9 +10,6 @@ namespace SortingStation
         public const float PlatformHeight = 1.1f;
         public const float PlatformEdge = -1.95f;
         public const float PlatformWidth = 5.1f;
-        private const float BoreHalfWidth = 5.65f;
-        private const float BoreWallHeight = 4.6f;
-        private const float BoreCrown = 2.6f;
 
         private void BuildStructures()
         {
@@ -32,81 +29,13 @@ namespace SortingStation
                 case WorldChunkKind.Foothills: BuildBoulders(6); break;
                 case WorldChunkKind.Tunnel: BuildBoulders(4); break;
             }
-        }
-
-        // ---- Tunnel ---------------------------------------------------------------------------
-
-        private static Vector2[] BoreProfile()
-        {
-            // Counter-clockwise (interior on the left), so the sweep's normals face into the bore.
-            List<Vector2> points = new List<Vector2>
+            BuildFeatures();
+            // Underground, station lamps count as tunnel lights (lit whenever the train is inside).
+            if (plan.Kind == WorldChunkKind.Tunnel)
             {
-                new Vector2(-BoreHalfWidth, -0.04f), new Vector2(BoreHalfWidth, -0.04f), new Vector2(BoreHalfWidth, BoreWallHeight)
-            };
-            const int arch = 10;
-            for (int i = 1; i < arch; i++)
-            {
-                float a = i / (float)arch * Mathf.PI;
-                points.Add(new Vector2(Mathf.Cos(a) * BoreHalfWidth, BoreWallHeight + Mathf.Sin(a) * BoreCrown));
+                chunk.TunnelLights.AddRange(chunk.Lamps);
+                chunk.Lamps.Clear();
             }
-            points.Add(new Vector2(-BoreHalfWidth, BoreWallHeight));
-            points.Add(new Vector2(-BoreHalfWidth, -0.04f));
-            return points.ToArray();
-        }
-
-        private void BuildTunnel()
-        {
-            float entrance = plan.Start + WorldPlanner.PortalInset;
-            float exit = plan.End - WorldPlanner.PortalInset;
-            float d0 = plan.TunnelEntrance ? entrance : plan.Start;
-            float d1 = plan.TunnelExit ? exit : plan.End;
-            float centre = WorldTerrain.CorridorCentre;
-            Block(plan.Start - 2f, plan.End + 2f, centre - 30f, centre + 30f);
-            Sweep(meshes.For(WorldMaterials.TunnelLining, 3f), d0, d1, 3f, centre, BoreProfile());
-
-            WorldMesh lamp = meshes.For(WorldMaterials.LampGlow, 1f);
-            const float lampSpacing = 12f;
-            for (int k = Mathf.CeilToInt(d0 / lampSpacing); k * lampSpacing < d1; k++)
-            {
-                float d = k * lampSpacing;
-                Vector3 position = P(d, centre - BoreHalfWidth + 0.25f, 4.2f);
-                lamp.AddBox(position, new Vector3(0.18f, 0.12f, 0.55f), R(d));
-                chunk.TunnelLights.Add(CreateLight("TunnelInteriorLight", position + R(d) * new Vector3(0.4f, -0.2f, 0f), LightType.Point,
-                    new Color(1f, 0.62f, 0.28f), 1.1f, 10f));
-            }
-            if (plan.TunnelEntrance) BuildPortal(entrance, -1f);
-            if (plan.TunnelExit) BuildPortal(exit, 1f);
-        }
-
-        /// <summary>Concrete headwall around the bore opening; the terrain supplies the rock face beside it.</summary>
-        private void BuildPortal(float d, float outward)
-        {
-            float centre = WorldTerrain.CorridorCentre;
-            float top = 0f;
-            for (float x = -WorldTerrain.PortalHalfWidth; x <= WorldTerrain.PortalHalfWidth; x += 2f)
-                top = Mathf.Max(top, terrain.Height(d + outward * 0.5f, centre + x, true));
-            top += 1.2f;
-            float half = WorldTerrain.PortalHalfWidth + 0.6f;
-            Vector3 normal = R(d) * new Vector3(0f, 0f, outward);
-            WorldMesh wall = meshes.For(WorldMaterials.Rock, 3f, true);
-            Vector3 V(float x, float y) => P(d, centre + x, y) + normal * 0.05f;
-            wall.AddQuad(V(-half, -0.2f), V(-BoreHalfWidth, -0.2f), V(-BoreHalfWidth, top), V(-half, top), normal);
-            wall.AddQuad(V(BoreHalfWidth, -0.2f), V(half, -0.2f), V(half, top), V(BoreHalfWidth, top), normal);
-            Vector2[] profile = BoreProfile();
-            float archTop = BoreWallHeight + BoreCrown;
-            // The part above the arch: from each arch segment straight up to the headwall top.
-            for (int i = 2; i < profile.Length - 2; i++)
-            {
-                Vector2 a = profile[i], b = profile[i + 1];
-                wall.AddQuad(V(a.x, a.y), V(b.x, b.y), V(b.x, top), V(a.x, top), normal);
-            }
-            // A heavier rim and a cornice make the portal read as built, not cut.
-            WorldMesh rim = meshes.For(WorldMaterials.DarkConcrete, 1f, true);
-            rim.AddBox(P(d, centre, archTop + 0.35f) + normal * 0.35f, new Vector3(BoreHalfWidth * 2f + 1.2f, 0.7f, 0.6f), R(d));
-            rim.AddBox(P(d, centre, top - 0.3f) + normal * 0.4f, new Vector3(half * 2f + 0.6f, 0.6f, 0.9f), R(d));
-            for (int side = -1; side <= 1; side += 2)
-                rim.AddBox(P(d, centre + side * (BoreHalfWidth + 0.3f), BoreWallHeight * 0.5f) + normal * 0.35f,
-                    new Vector3(0.6f, BoreWallHeight + 0.2f, 0.6f), R(d));
         }
 
         // ---- River and bridge ------------------------------------------------------------------

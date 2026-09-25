@@ -18,13 +18,50 @@ namespace SortingStation
         City
     }
 
+    /// <summary>What a tunnel is lined with (or not): cast concrete, old brick, or a natural cave.</summary>
+    public enum TunnelStyle
+    {
+        Concrete,
+        Brick,
+        Cave
+    }
+
+    public enum TunnelSize
+    {
+        Small,
+        Normal,
+        Large
+    }
+
+    /// <summary>Rare things happening at a station.</summary>
+    public enum StationEvent
+    {
+        None,
+        Festival,
+        Police,
+        Market,
+        Wedding,
+        TrackWorks,
+        BrassBand,
+        FireDrill,
+        Circus,
+        Hikers,
+        Welcome,
+        FilmCrew,
+        Concert,
+        Ambulance,
+        Fireworks
+    }
+
     /// <summary>How grand a station is: a bare halt in the fields up to a city terminal with a train shed.</summary>
     public enum StationStyle
     {
         Halt,
         Village,
         Town,
-        Terminal
+        Terminal,
+        /// <summary>An underground halt in a miners' cave, kept by gnomes.</summary>
+        Gnome
     }
 
     public struct WorldChunkPlan
@@ -42,6 +79,11 @@ namespace SortingStation
         public bool RoadRight;
         /// <summary>City chunks: small houses packed right up to the line instead of tall blocks.</summary>
         public bool DenseLowRise;
+        public TunnelStyle Tunnel;
+        public TunnelSize Bore;
+        /// <summary>A tunnel chunk that opens into a great cavern with a miners' settlement.</summary>
+        public bool CaveHall;
+        public StationEvent Event;
         /// <summary>True for the first and last tunnel chunk: they hold the portals.</summary>
         public bool TunnelEntrance;
         public bool TunnelExit;
@@ -138,6 +180,16 @@ namespace SortingStation
             return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((inside + 4f) / 60f));
         }
 
+        private static readonly string[] GnomeStations = { "Самоцветная", "Гномья Штольня", "Рудник Глубинный", "Кристальная", "Малахитовая", "Серебряная Жила" };
+
+        /// <summary>The station a planned stop belongs to (gnome halts have their own names).</summary>
+        public static CabStationDefinition StationDefinition(WorldChunkPlan plan)
+        {
+            if (plan.Station == StationStyle.Gnome)
+                return new CabStationDefinition("gnome-" + plan.Index, GnomeStations[plan.Index % GnomeStations.Length], "Подземная линия", 100 + plan.Index);
+            return CabStationNetwork.AtSequence(plan.StationNumber);
+        }
+
         public static string KindName(WorldChunkKind kind)
         {
             switch (kind)
@@ -173,12 +225,37 @@ namespace SortingStation
             {
                 case WorldChunkKind.Foothills:
                 case WorldChunkKind.Tunnel:
+                {
+                    double style = random.NextDouble();
+                    TunnelStyle tunnel = style < 0.4 ? TunnelStyle.Concrete : style < 0.65 ? TunnelStyle.Brick : TunnelStyle.Cave;
+                    TunnelSize bore = tunnel == TunnelStyle.Cave ? TunnelSize.Large : (TunnelSize)random.Next(0, 3);
                     AddRun(WorldChunkKind.Foothills, 1);
-                    AddRun(WorldChunkKind.Tunnel, 2 + random.Next(0, 2));
+                    int start = plans.Count;
+                    int length = tunnel == TunnelStyle.Cave ? 3 + random.Next(0, 3) : 1 + random.Next(0, 3);
+                    AddRun(WorldChunkKind.Tunnel, length);
+                    for (int i = start; i < plans.Count; i++)
+                    {
+                        WorldChunkPlan plan = plans[i];
+                        plan.Tunnel = tunnel;
+                        plan.Bore = bore;
+                        // A cave opens into a miners' hall in its middle, with a gnome halt when a stop is due.
+                        if (tunnel == TunnelStyle.Cave && i == start + length / 2)
+                        {
+                            plan.CaveHall = true;
+                            if (i - lastStationChunk >= 12)
+                            {
+                                plan.StationNumber = ++stationCount;
+                                plan.Station = StationStyle.Gnome;
+                                lastStationChunk = i;
+                            }
+                        }
+                        plans[i] = plan;
+                    }
                     AddRun(WorldChunkKind.Foothills, 1);
                     lastRun = WorldChunkKind.Foothills;
                     lastRunEnd[WorldChunkKind.Tunnel] = plans.Count;
                     return;
+                }
                 case WorldChunkKind.Forest: AddRun(kind, 2 + random.Next(0, 3)); break;
                 case WorldChunkKind.Village: AddRun(kind, 2 + random.Next(0, 2)); break;
                 case WorldChunkKind.Town: AddRun(kind, 2 + random.Next(0, 2)); break;
@@ -264,6 +341,8 @@ namespace SortingStation
                     plan.Station = kind == WorldChunkKind.City ? StationStyle.Terminal
                         : kind == WorldChunkKind.Town ? StationStyle.Town
                         : random.NextDouble() < 0.4 ? StationStyle.Halt : StationStyle.Village;
+                    // Something special happens at roughly one station in six.
+                    if (random.NextDouble() < 0.17) plan.Event = (StationEvent)(1 + random.Next(0, 14));
                 }
                 plan.RoadLeft = road && (bothSides || !roadRight);
                 plan.RoadRight = road && (bothSides || roadRight);
