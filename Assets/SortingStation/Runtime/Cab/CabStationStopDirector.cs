@@ -5,9 +5,9 @@ namespace SortingStation
 {
     public sealed class CabStationStopDirector : MonoBehaviour
     {
-        // Platforms are 52 m long in the first 3D route. Stopping just inside the leading edge
-        // puts the passenger group beside the cab instead of leaving it distant at the platform's centre.
-        private const float StopOffsetBeforePlatformCentre = 16f;
+        // Platforms are 52 m long in the 3D route. The cab stops 3 m short of the platform's far
+        // end, like a real train, so the whole consist behind it stands along the platform.
+        private const float StopOffsetPastPlatformCentre = 23f;
         private CabInteractionCatalog catalog;
         private CabStationStopModel model;
         private System.Random random;
@@ -110,10 +110,10 @@ namespace SortingStation
         {
             if (cycleLength < 100f) return -1f;
             float cycleStart = Mathf.Floor(distance / cycleLength) * cycleLength;
-            float first = cycleStart + cycleLength * 0.53f - StopOffsetBeforePlatformCentre;
+            float first = cycleStart + cycleLength * CabRouteLayout.FirstStation01 + StopOffsetPastPlatformCentre;
             if (first >= distance - 0.01f) return first;
-            float second = cycleStart + cycleLength * 0.82f - StopOffsetBeforePlatformCentre;
-            return second >= distance - 0.01f ? second : cycleStart + cycleLength * 1.53f - StopOffsetBeforePlatformCentre;
+            float second = cycleStart + cycleLength * CabRouteLayout.SecondStation01 + StopOffsetPastPlatformCentre;
+            return second >= distance - 0.01f ? second : cycleStart + cycleLength * (1f + CabRouteLayout.FirstStation01) + StopOffsetPastPlatformCentre;
         }
     }
 }

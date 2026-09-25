@@ -164,6 +164,62 @@ namespace SortingStation
             return tufts;
         }
 
+        public const string LapContinuationName = "LapContinuation";
+
+        /// <summary>
+        /// The route is a loop of finite length: near its end the view ahead used to run into
+        /// empty space until the pose wrapped back to the start. The track starts and ends
+        /// straight on the same line, so a copy of the first stretch placed one loop length
+        /// ahead (and of the last stretch one loop behind) joins seamlessly. Only meshes are
+        /// copied — no scripts, lights or text — so the copies are pure scenery.
+        /// </summary>
+        public static int BuildLapContinuation(Transform routeRoot, float cycle, float aheadReach, float behindReach)
+        {
+            Transform existing = routeRoot.Find(LapContinuationName);
+            if (existing != null) Object.Destroy(existing.gameObject);
+            Transform container = new GameObject(LapContinuationName).transform;
+            container.SetParent(routeRoot, false);
+            Transform ahead = new GameObject("NextLap").transform;
+            ahead.SetParent(container, false);
+            ahead.localPosition = new Vector3(0f, 0f, cycle);
+            Transform behind = new GameObject("PreviousLap").transform;
+            behind.SetParent(container, false);
+            behind.localPosition = new Vector3(0f, 0f, -cycle);
+
+            int copies = 0;
+            MeshRenderer[] renderers = routeRoot.GetComponentsInChildren<MeshRenderer>(false);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                MeshRenderer renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || renderer.transform.IsChildOf(container)) continue;
+                if (renderer.gameObject.layer == CabTrainConsist.ExteriorLayer || renderer.name.StartsWith("Consist")) continue;
+                if (renderer.GetComponent<TextMesh>() != null) continue;
+                MeshFilter filter = renderer.GetComponent<MeshFilter>();
+                if (filter == null || filter.sharedMesh == null) continue;
+                Bounds bounds = renderer.bounds;
+                float nearZ = routeRoot.InverseTransformPoint(bounds.center).z - bounds.extents.magnitude;
+                float farZ = routeRoot.InverseTransformPoint(bounds.center).z + bounds.extents.magnitude;
+                if (nearZ < aheadReach) { Copy(renderer, filter, routeRoot, ahead); copies++; }
+                if (farZ > cycle - behindReach) { Copy(renderer, filter, routeRoot, behind); copies++; }
+            }
+            return copies;
+        }
+
+        private static void Copy(MeshRenderer source, MeshFilter filter, Transform routeRoot, Transform parent)
+        {
+            GameObject copy = new GameObject(source.name, typeof(MeshFilter), typeof(MeshRenderer));
+            copy.layer = source.gameObject.layer;
+            copy.transform.SetParent(parent, false);
+            copy.transform.localPosition = routeRoot.InverseTransformPoint(source.transform.position);
+            copy.transform.localRotation = Quaternion.Inverse(routeRoot.rotation) * source.transform.rotation;
+            copy.transform.localScale = source.transform.lossyScale;
+            copy.GetComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+            MeshRenderer renderer = copy.GetComponent<MeshRenderer>();
+            renderer.sharedMaterials = source.sharedMaterials;
+            renderer.shadowCastingMode = source.shadowCastingMode;
+            renderer.receiveShadows = source.receiveShadows;
+        }
+
         private static Material GrassMaterial(SeasonType season)
         {
             Color tint = season == SeasonType.Autumn ? new Color(1.2f, 0.95f, 0.55f)

@@ -24,8 +24,10 @@ namespace SortingStation
         private Transform sceneRoot;
         private Transform driverRig;
         private CabSkyAndFog atmosphereSky;
+        private CabTrainConsist consist;
+        private CabRearMirrors mirrors;
         public const float DriverEyeHeight = 3.25f;
-        public const float DriverHeadPitch = 7f;
+        public const float DriverHeadPitch = 5f;
         private Light sun;
         private Light headlight;
         private Transform nativeSkyRoot;
@@ -115,6 +117,11 @@ namespace SortingStation
                 for (int i = 0; i < nativeMountains.Length; i++)
                     if (nativeMountains[i] != null) nativeMountains[i].gameObject.SetActive(false);
             atmosphereSky = new CabSkyAndFog(worldCamera, sun, worldCamera.farClipPlane);
+            // The locomotive body around the cab is only for the mirrors; from inside it would
+            // just hide the view.
+            worldCamera.cullingMask &= ~(1 << CabTrainConsist.ExteriorLayer);
+            mirrors = sceneRoot.gameObject.AddComponent<CabRearMirrors>();
+            mirrors.Build(driverRig, CabCockpitFactory.ControlLayer);
         }
 
         public void Initialize(RectTransform stage, CabRideDefinition definition, CabSceneryCatalog sceneryCatalog,
@@ -193,6 +200,12 @@ namespace SortingStation
             CabVegetation.Populate(routeRoot, season.season);
             CabWorldExtras.BuildVergeGrass(routeRoot, journey.CycleLength,
                 settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f, season.season);
+            // Last: copy the finished first and last stretches past the ends of the loop.
+            CabWorldExtras.BuildLapContinuation(routeRoot, journey.CycleLength,
+                worldCamera != null ? worldCamera.farClipPlane + 30f : 270f, 90f);
+            // The train is added after the loop copies so it is not copied with the scenery.
+            if (consist == null) consist = new CabTrainConsist(routeRoot);
+            consist.UpdatePose(Distance, journey.CycleLength);
         }
 
         public void SetDayTime(float time01)
@@ -213,7 +226,14 @@ namespace SortingStation
             authoring?.SetHeadlights(enabled);
         }
         public void SetWeather(WeatherType weather) => nativeWeather = weather;
-        public void SetStationPhase(CabStationPhase phase) => authoring?.SetStationPhase(phase);
+        public void SetStationPhase(CabStationPhase phase)
+        {
+            authoring?.SetStationPhase(phase);
+            // Mirrors refresh faster while passengers get on and off.
+            if (mirrors != null)
+                mirrors.FastRefresh = phase == CabStationPhase.Approaching || phase == CabStationPhase.WaitingForDoors ||
+                                      phase == CabStationPhase.DoorsOpen || phase == CabStationPhase.Releasing;
+        }
         public void SetUpcomingStation(CabStationDefinition station) => authoring?.SetStationName(station != null ? station.DisplayName : "Станция");
         public void SetPassengerReport(CabPassengerStopReport report) => authoring?.SetPassengerReport(report);
         public void SetPassengerWeather(WeatherType weather) => authoring?.SetPassengerWeather(weather);
@@ -266,7 +286,9 @@ namespace SortingStation
             {
                 driverRig = new GameObject("DriverRig").transform;
                 driverRig.SetParent(SceneRoot, false);
-                driverRig.localPosition = new Vector3(0f, DriverEyeHeight, -6f);
+                // The driver's eye sits exactly over the train's route position: anywhere behind
+                // it the curved track would run beside the cab (and through tunnel walls).
+                driverRig.localPosition = new Vector3(0f, DriverEyeHeight, 0f);
                 cameraObject.name = "DriverHeadCamera";
                 cameraObject.tag = "MainCamera";
                 cameraObject.transform.SetParent(driverRig, false);
@@ -617,6 +639,7 @@ namespace SortingStation
             Quaternion heading = Cab3DTrackMath.Heading(Distance, cycle);
             routeRoot.localRotation = Quaternion.Inverse(heading);
             routeRoot.localPosition = routeRoot.localRotation * -point;
+            consist?.UpdatePose(Distance, cycle);
         }
 
         private bool MatchesJourneyCycle(Cab3DRouteAuthoring routeAuthoring)

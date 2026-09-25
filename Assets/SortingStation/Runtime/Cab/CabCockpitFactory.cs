@@ -211,23 +211,26 @@ namespace SortingStation
         {
             Transform hood = Group(root, "InstrumentHood");
             // Binnacle rising from the back of the desk; its face leans back toward the driver.
-            Quaternion faceTilt = Quaternion.Euler(-28f, 0f, 0f);
-            Vector3 hoodCenter = new Vector3(0f, -0.195f, 1.02f);
+            // Raised so the screens and dials sit just under the windscreen, above the desk
+            // controls, where the driver actually looks.
+            Quaternion faceTilt = Quaternion.Euler(-24f, 0f, 0f);
+            Vector3 hoodCenter = new Vector3(0f, -0.21f, 1.04f);
             CabMeshBuilder body = new CabMeshBuilder(0.6f);
-            body.AddChamferBox(hoodCenter, new Vector3(1.62f, 0.15f, 0.2f), 0.03f, faceTilt);
-            body.AddChamferBox(hoodCenter + new Vector3(0f, 0.08f, 0.05f), new Vector3(1.66f, 0.03f, 0.26f), 0.012f, Quaternion.Euler(-6f, 0f, 0f));
+            body.AddChamferBox(hoodCenter, new Vector3(1.66f, 0.25f, 0.2f), 0.03f, faceTilt);
+            body.AddChamferBox(hoodCenter + new Vector3(0f, 0.13f, 0.05f), new Vector3(1.7f, 0.03f, 0.26f), 0.012f, Quaternion.Euler(-6f, 0f, 0f));
             MeshPart(hood, "HoodBody", body, p.Console);
 
             Vector3 faceNormal = faceTilt * Vector3.back;
             Vector3 facePoint = hoodCenter + faceNormal * 0.101f;
             Quaternion screenRotation = Quaternion.LookRotation(-faceNormal, faceTilt * Vector3.up);
-            CreateScreen(hood, "SpeedScreen3D", facePoint + new Vector3(-0.28f, 0.005f, 0f), screenRotation, new Vector2(0.34f, 0.105f), p, "000 km/h");
-            CreateScreen(hood, "MessageScreen3D", facePoint + new Vector3(0.28f, 0.005f, 0f), screenRotation, new Vector2(0.34f, 0.105f), p, "СИСТЕМА ГОТОВА");
+            Vector3 upper = faceTilt * Vector3.up * 0.05f;
+            CreateScreen(hood, "SpeedScreen3D", facePoint + upper + new Vector3(-0.27f, 0f, 0f), screenRotation, new Vector2(0.34f, 0.14f), p, "000 km/h");
+            CreateScreen(hood, "MessageScreen3D", facePoint + upper + new Vector3(0.27f, 0f, 0f), screenRotation, new Vector2(0.34f, 0.14f), p, "СИСТЕМА ГОТОВА");
 
             // Speed, traction and brake-pressure gauges at the outer ends of the hood.
-            CreateGauge(hood, facePoint + new Vector3(-0.66f, 0f, 0f), screenRotation, p, "СКОРОСТЬ");
-            CreateGauge(hood, facePoint + new Vector3(0.66f, 0f, 0f), screenRotation, p, "ТЯГА");
-            CreateGauge(hood, facePoint + new Vector3(0.0f, 0f, 0f), screenRotation, p, "ТОРМОЗ");
+            CreateGauge(hood, facePoint + upper + new Vector3(-0.72f, 0f, 0f), screenRotation, p, "СКОРОСТЬ");
+            CreateGauge(hood, facePoint + upper + new Vector3(0.72f, 0f, 0f), screenRotation, p, "ТЯГА");
+            CreateGauge(hood, facePoint + upper, screenRotation, p, "ТОРМОЗ");
         }
 
         private static void BuildControls(Transform root, Palette p)
@@ -252,9 +255,9 @@ namespace SortingStation
             CreateLever(controls, CabControlAction.Brake, "BrakeLever3D", -0.56f, 0.62f, p, p.Red, "ТОРМОЗ");
             CreateLever(controls, CabControlAction.Throttle, "ThrottleLever3D", 0.56f, 0.62f, p, p.Black, "ТЯГА");
 
-            CreatePushButton(controls, CabControlAction.Horn, "HornButton3D", -0.30f, 0.8f, 0.042f, p.Yellow, p, "ГУДОК");
-            CreatePushButton(controls, CabControlAction.Bell, "BellButton3D", 0.30f, 0.8f, 0.042f, p.Steel, p, "ЗВОНОК");
-            CreateVigilanceButton(controls, 0f, 0.74f, p);
+            CreatePushButton(controls, CabControlAction.Horn, "HornButton3D", -0.34f, 0.72f, 0.042f, p.Yellow, p, "ГУДОК");
+            CreatePushButton(controls, CabControlAction.Bell, "BellButton3D", 0.34f, 0.72f, 0.042f, p.Steel, p, "ЗВОНОК");
+            CreateVigilanceButton(controls, 0f, 0.76f, p);
             CreateRadioHandset(controls, p);
         }
 
@@ -355,6 +358,7 @@ namespace SortingStation
             lampObject.transform.localPosition = new Vector3(0f, 0.062f, -0.008f);
 
             CreateCaption(anchorObject, caption, new Vector3(0f, -0.058f, -0.006f), 0.0022f);
+            CreateIcon(rocker, action.ToString(), new Vector3(0f, 0f, -0.0262f), 0.05f);
 
             BoxCollider hit = anchorObject.gameObject.AddComponent<BoxCollider>();
             // Kept low over the desk so it never shadows the round buttons behind it.
@@ -384,18 +388,18 @@ namespace SortingStation
             pivot.SetParent(anchorObject, false);
             pivot.localPosition = new Vector3(0f, 0.03f, 0f);
             CabMeshBuilder shaft = new CabMeshBuilder(0.2f);
-            shaft.AddCylinder(new Vector3(0f, 0.09f, 0f), 0.011f, 0.18f, 12, Quaternion.identity);
+            shaft.AddCylinder(new Vector3(0f, 0.07f, 0f), 0.011f, 0.14f, 12, Quaternion.identity);
             MeshPart(pivot, "LeverShaft", shaft, p.Steel);
             CabMeshBuilder handle = new CabMeshBuilder(0.2f);
-            handle.AddChamferBox(new Vector3(0f, 0.2f, 0f), new Vector3(0.13f, 0.05f, 0.06f), 0.02f, Quaternion.identity);
+            handle.AddChamferBox(new Vector3(0f, 0.16f, 0f), new Vector3(0.13f, 0.05f, 0.06f), 0.02f, Quaternion.identity);
             MeshPart(pivot, "LeverHandle", handle, knob);
 
             CreateCaption(anchorObject, caption, new Vector3(0f, 0.04f, -0.17f), 0.0024f, Quaternion.Euler(90f, 0f, 0f));
 
             BoxCollider hit = anchorObject.gameObject.AddComponent<BoxCollider>();
             // Covers the handle and upper shaft: the part a child grabs, clear of the switch row.
-            hit.center = new Vector3(0f, 0.17f, 0f);
-            hit.size = new Vector3(0.16f, 0.16f, 0.2f);
+            hit.center = new Vector3(0f, 0.135f, 0f);
+            hit.size = new Vector3(0.16f, 0.14f, 0.2f);
             anchorObject.gameObject.AddComponent<Cab3DControlAnchor>().Configure(action, pivot);
         }
 
@@ -416,6 +420,7 @@ namespace SortingStation
             CabMeshBuilder capMesh = new CabMeshBuilder(0.2f);
             capMesh.AddCylinder(new Vector3(0f, 0f, -0.018f), radius, 0.03f, 24, Quaternion.Euler(90f, 0f, 0f));
             MeshPart(plunger, "Cap", capMesh, cap);
+            CreateIcon(plunger, action.ToString(), new Vector3(0f, 0f, -0.0335f), radius * 1.25f);
 
             CreateCaption(anchorObject, caption, new Vector3(0f, -(radius + 0.03f), -0.006f), 0.0022f);
 
@@ -512,10 +517,10 @@ namespace SortingStation
             gauge.localPosition = position;
             gauge.localRotation = rotation;
             CabMeshBuilder bezel = new CabMeshBuilder(0.2f);
-            bezel.AddCylinder(new Vector3(0f, 0f, 0.002f), 0.058f, 0.018f, 32, Quaternion.Euler(90f, 0f, 0f));
+            bezel.AddCylinder(new Vector3(0f, 0f, 0.002f), 0.076f, 0.018f, 32, Quaternion.Euler(90f, 0f, 0f));
             MeshPart(gauge, "GaugeBezel", bezel, p.Steel);
             CabMeshBuilder dial = new CabMeshBuilder(0.2f);
-            dial.AddDisc(new Vector3(0f, 0f, -0.0075f), 0.05f, 32, Vector3.back);
+            dial.AddDisc(new Vector3(0f, 0f, -0.0075f), 0.066f, 32, Vector3.back);
             MeshPart(gauge, "GaugeDial", dial, p.Dial, castShadows: false);
 
             // The renderer turns the needle around its local Z, which faces the driver here.
@@ -523,10 +528,41 @@ namespace SortingStation
             needle.SetParent(gauge, false);
             needle.localPosition = new Vector3(0f, 0f, -0.009f);
             CabMeshBuilder needleMesh = new CabMeshBuilder(0.1f);
-            needleMesh.AddBox(new Vector3(0f, 0.02f, 0f), new Vector3(0.004f, 0.042f, 0.0015f), Quaternion.identity);
+            needleMesh.AddBox(new Vector3(0f, 0.026f, 0f), new Vector3(0.005f, 0.056f, 0.0015f), Quaternion.identity);
             needleMesh.AddCylinder(Vector3.zero, 0.006f, 0.003f, 12, Quaternion.Euler(90f, 0f, 0f));
             MeshPart(needle, "Needle", needleMesh, p.Red, castShadows: false);
-            CreateCaption(gauge, caption, new Vector3(0f, -0.028f, -0.009f), 0.0016f, Quaternion.identity, new Color(0.1f, 0.1f, 0.1f));
+            CreateCaption(gauge, caption, new Vector3(0f, -0.036f, -0.009f), 0.002f, Quaternion.identity, new Color(0.1f, 0.1f, 0.1f));
+        }
+
+        private static readonly System.Collections.Generic.Dictionary<string, Material> IconMaterials =
+            new System.Collections.Generic.Dictionary<string, Material>();
+
+        /// <summary>
+        /// White pictogram (Resources/Pbr/Icon_&lt;action&gt;) on the face of a control, facing out of
+        /// its panel (local -Z), so each switch is recognisable without reading its caption.
+        /// </summary>
+        private static void CreateIcon(Transform parent, string iconName, Vector3 localPosition, float size)
+        {
+            if (!IconMaterials.TryGetValue(iconName, out Material material) || material == null)
+            {
+                Texture2D texture = Resources.Load<Texture2D>("Pbr/Icon_" + iconName);
+                if (texture == null) return;
+                material = new Material(CabShaders.UnlitTransparent) { name = "Icon_" + iconName, mainTexture = texture };
+                IconMaterials[iconName] = material;
+            }
+            float h = size * 0.5f;
+            Mesh mesh = new Mesh { name = "Icon_" + iconName };
+            mesh.vertices = new[] { new Vector3(-h, -h, 0f), new Vector3(h, -h, 0f), new Vector3(h, h, 0f), new Vector3(-h, h, 0f) };
+            mesh.uv = new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
+            mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            GameObject icon = new GameObject("Icon", typeof(MeshFilter), typeof(MeshRenderer));
+            icon.transform.SetParent(parent, false);
+            icon.transform.localPosition = localPosition;
+            icon.GetComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer renderer = icon.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         private static void CreateCaption(Transform parent, string caption, Vector3 localPosition, float characterSize)

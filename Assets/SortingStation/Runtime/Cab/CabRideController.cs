@@ -574,7 +574,12 @@ namespace SortingStation
             if (station == null) return;
             world?.SetUpcomingStation(station);
             SetStatus("Следующая: " + station.DisplayName + "\n" + station.LineName);
+            services.Speech.Speak(StationArrivalAnnouncement(station.DisplayName));
         }
+
+        /// <summary>Platform announcement spoken as the train pulls into a station.</summary>
+        public static string StationArrivalAnnouncement(string stationName) =>
+            "Будьте осторожны, на станцию " + stationName + " прибывает поезд.";
 
         private void BuildHeadlightLayer()
         {

@@ -5,7 +5,7 @@ namespace SortingStation
 {
     public static class CabWorld3DPrototypeFactory
     {
-        public const int CurrentRouteVersion = 37;
+        public const int CurrentRouteVersion = 38;
         private const float OppositeTrackOffset = 4.80f;
         private sealed class MeshBuilder
         {
@@ -189,8 +189,8 @@ namespace SortingStation
             BuildParallelRoads(root.transform, cycleLength, concrete, steel);
             BuildCityViaduct(root.transform, cycleLength, concrete, steel);
             BuildRoadOverpass(root.transform, cycleLength, concrete, steel);
-            BuildStation(root.transform, cycleLength, 0.53f, "Станция Удельная", concrete, 0);
-            BuildStation(root.transform, cycleLength, 0.82f, "Станция Приозерская", concrete, 1);
+            BuildStation(root.transform, cycleLength, CabRouteLayout.FirstStation01, "Станция Удельная", concrete, 0);
+            BuildStation(root.transform, cycleLength, CabRouteLayout.SecondStation01, "Станция Приозерская", concrete, 1);
             BuildLivingScenery(root.transform, cycleLength, concrete, steel, wood);
             BuildTunnel(root.transform, cycleLength, concrete);
             BuildDistantScenery(root.transform, cycleLength, concrete, leaves);
@@ -434,13 +434,28 @@ namespace SortingStation
             GameObject pole = Primitive(root, PrimitiveType.Cylinder, "StationSignPole", position + Vector3.down * 1.05f,
                 new Vector3(0.13f, 1.1f, 0.13f), Material("SignPole", new Color(0.18f, 0.22f, 0.24f)));
             pole.transform.rotation = heading;
-            // TextMesh is single-sided. Two independently oriented copies mean that a station
-            // name stays readable on approach and after passing it, instead of becoming mirrored.
-            CreateStationSignText(root, "StationName_" + stationName, position, heading, stationName);
-            CreateStationSignText(root, "StationName_Back_" + stationName, position, heading * Quaternion.Euler(0f, 180f, 0f), stationName);
+            // A TextMesh draws from both sides, so the two copies (one per direction) sit on either
+            // face of a board; without it the back copy showed through mirrored over the name.
+            GameObject board = Primitive(root, PrimitiveType.Cube, "StationSignBoard", position,
+                new Vector3(4f, 1.1f, 0.08f), Material("StationSignBoard", new Color(0.05f, 0.22f, 0.48f)));
+            board.transform.rotation = heading;
+            Vector3 forward = heading * Vector3.forward;
+            TextMesh front = CreateStationSignText(root, "StationName_" + stationName, position - forward * 0.06f, heading, stationName);
+            CreateStationSignText(root, "StationName_Back_" + stationName, position + forward * 0.06f,
+                heading * Quaternion.Euler(0f, 180f, 0f), stationName);
+            FitSignBoard(board.transform, front);
         }
 
-        private static void CreateStationSignText(Transform root, string name, Vector3 position, Quaternion rotation, string stationName)
+        /// <summary>Sizes a station sign board to its name with a margin around the letters.</summary>
+        public static void FitSignBoard(Transform board, TextMesh text)
+        {
+            MeshRenderer renderer = text != null ? text.GetComponent<MeshRenderer>() : null;
+            if (board == null || renderer == null) return;
+            Vector3 size = Vector3.Scale(renderer.localBounds.size, text.transform.lossyScale);
+            board.localScale = new Vector3(Mathf.Max(1.5f, size.x + 0.7f), Mathf.Max(0.9f, size.y + 0.35f), 0.08f);
+        }
+
+        private static TextMesh CreateStationSignText(Transform root, string name, Vector3 position, Quaternion rotation, string stationName)
         {
             GameObject label = new GameObject(name, typeof(TextMesh));
             label.transform.SetParent(root, false);
@@ -453,6 +468,7 @@ namespace SortingStation
             text.characterSize = 0.32f;
             text.fontSize = 42;
             text.color = new Color(0.96f, 0.94f, 0.78f);
+            return text;
         }
 
         private static void BuildDistantScenery(Transform root, float cycle, Material building, Material leaves)
@@ -483,7 +499,7 @@ namespace SortingStation
             // These are original generated vistas, mounted far from the track so they enrich the
             // horizon without pretending to be a close 3D object.  They can be replaced in the
             // editable prototype with hand-made scenery later.
-            CreatePhotoBackdrop(root, cycle, cycle * 0.53f, -35f, 12f, "Environment/Station_Lenoblast_v1", "LenoblastStationVista");
+            CreatePhotoBackdrop(root, cycle, cycle * CabRouteLayout.FirstStation01, -35f, 12f, "Environment/Station_Lenoblast_v1", "LenoblastStationVista");
             CreatePhotoBackdrop(root, cycle, cycle * 0.82f, -42f, 15f, "Environment/Station_MuseumFantasy_v1", "MuseumStationVista");
             CreatePhotoBackdrop(root, cycle, cycle * 0.69f, 42f, 12f, "Environment/Tunnel_TwoTrack_v1", "TunnelExitVista");
             CreatePhotoBackdrop(root, cycle, cycle * 0.36f, 42f, 12f, "Environment/Crossing_RoadTraffic_v1", "CrossingRoadVista");
@@ -1173,8 +1189,8 @@ namespace SortingStation
             // meadow, forest, road and village.  The old single portal at 69% was near the
             // *exit*, which made the train appear to skirt the mountain.  Build the complete
             // two-track bore from the actual segment entry to its exit instead.
-            float startDistance = cycle * 0.547f;
-            float endDistance = cycle * 0.709f;
+            float startDistance = cycle * CabRouteLayout.TunnelStart01;
+            float endDistance = cycle * CabRouteLayout.TunnelEnd01;
             float d = startDistance;
             Vector3 p = Cab3DTrackMath.Point(d, cycle);
             Quaternion q = Cab3DTrackMath.Heading(d, cycle);

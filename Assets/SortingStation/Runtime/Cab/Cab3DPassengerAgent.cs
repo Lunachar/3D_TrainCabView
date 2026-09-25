@@ -120,6 +120,12 @@ namespace SortingStation
             Vector3 from = alight ? coachDoorPosition : platformPosition;
             Vector3 to = alight ? platformPosition : coachDoorPosition;
             transform.localPosition = Vector3.Lerp(from, to, eased);
+            if (board && progress >= 1f)
+            {
+                // Reached the coach door: the passenger has stepped aboard.
+                gameObject.SetActive(false);
+                return;
+            }
             transform.localRotation = Quaternion.Euler(0f, board ? 180f : 0f,
                 Mathf.Sin(Time.time * 9f + transform.GetSiblingIndex()) * 2f);
             AnimateWalk(eased);

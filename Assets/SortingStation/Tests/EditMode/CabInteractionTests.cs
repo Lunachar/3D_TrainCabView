@@ -98,7 +98,7 @@ namespace SortingStation.Tests
             Assert.That(catalog.StationApproachDistance, Is.EqualTo(45f).Within(0.001f));
             Assert.That(catalog.StationCrawlStartDistance, Is.EqualTo(4f).Within(0.001f));
             Assert.That(catalog.StationCrawlSpeed01, Is.EqualTo(0.09f).Within(0.001f));
-            Assert.That(catalog.StationStopTolerance, Is.EqualTo(2.8f).Within(0.001f));
+            Assert.That(catalog.StationStopTolerance, Is.EqualTo(1.6f).Within(0.001f));
         }
 
         [Test]

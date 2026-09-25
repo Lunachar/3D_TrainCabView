@@ -103,6 +103,110 @@ namespace SortingStation.Tests
             Assert.That(mountains, Is.GreaterThan(meadow + 15f));
         }
 
+        [Test]
+        public void StationArrivalIsAnnouncedByName()
+        {
+            Assert.That(CabRideController.StationArrivalAnnouncement("Удельная"),
+                Is.EqualTo("Будьте осторожны, на станцию Удельная прибывает поезд."));
+        }
+
+        [Test]
+        public void FirstPlatformEndsBeforeTheTunnelAndTheCabStopsOnThePlatform()
+        {
+            const float cycle = 1170f;
+            float platformEnd = cycle * CabRouteLayout.FirstStation01 + CabRouteLayout.PlatformLength * 0.5f;
+            Assert.That(platformEnd, Is.LessThan(cycle * CabRouteLayout.TunnelStart01 - 15f));
+            // The whole train (locomotive + coaches) fits along the platform behind the stop point.
+            float trainLength = CabTrainConsist.LocomotiveLength + CabTrainConsist.CoachCount *
+                (CabTrainConsist.CoachLength + CabTrainConsist.CouplingGap);
+            Assert.That(trainLength, Is.GreaterThan(CabRouteLayout.PlatformLength * 0.5f));
+        }
+
+        [Test]
+        public void TrainCarsFollowTheTrackBehindTheCabAcrossTheLoopSeam()
+        {
+            const float cycle = 1170f;
+            GameObject route = new GameObject("Route");
+            try
+            {
+                CabTrainConsist consist = new CabTrainConsist(route.transform);
+                foreach (float distance in new[] { 5f, 480f, 700f })
+                {
+                    consist.UpdatePose(distance, cycle);
+                    float previousZ = float.MaxValue;
+                    foreach (Transform car in consist.Cars)
+                    {
+                        float z = car.localPosition.z;
+                        Assert.That(z, Is.LessThan(previousZ), "cars run one behind another at " + distance);
+                        Assert.That(z, Is.GreaterThan(distance - 100f).And.LessThan(distance + 5f), "no car jumps across the loop");
+                        float trackX = Cab3DTrackMath.Point(Mathf.Repeat(z, cycle), cycle).x;
+                        Assert.That(Mathf.Abs(car.localPosition.x - trackX), Is.LessThan(0.6f), "car stays on the track");
+                        previousZ = z;
+                    }
+                }
+                Assert.That(consist.Cars[0].gameObject.layer, Is.EqualTo(CabTrainConsist.ExteriorLayer));
+            }
+            finally
+            {
+                Object.DestroyImmediate(route);
+            }
+        }
+
+        [Test]
+        public void LoopContinuationCopiesTheStartOneLoopAhead()
+        {
+            const float cycle = 1170f;
+            GameObject route = new GameObject("Route");
+            try
+            {
+                GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                marker.name = "StartMarker";
+                marker.transform.SetParent(route.transform, false);
+                marker.transform.localPosition = new Vector3(3f, 0f, 20f);
+                GameObject far = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                far.name = "MiddleMarker";
+                far.transform.SetParent(route.transform, false);
+                far.transform.localPosition = new Vector3(0f, 0f, 600f);
+
+                CabWorldExtras.BuildLapContinuation(route.transform, cycle, 270f, 90f);
+
+                Transform next = route.transform.Find(CabWorldExtras.LapContinuationName + "/NextLap/StartMarker");
+                Assert.That(next, Is.Not.Null);
+                Vector3 copied = route.transform.InverseTransformPoint(next.position);
+                Assert.That(Vector3.Distance(copied, new Vector3(3f, 0f, 20f + cycle)), Is.LessThan(0.01f));
+                Assert.That(route.transform.Find(CabWorldExtras.LapContinuationName + "/NextLap/MiddleMarker"), Is.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(route);
+            }
+        }
+
+        [Test]
+        public void RearMirrorsRenderThroughTheirOwnSmallCameras()
+        {
+            GameObject rig = new GameObject("Rig");
+            try
+            {
+                CabRearMirrors mirrors = rig.AddComponent<CabRearMirrors>();
+                mirrors.Build(rig.transform, CabCockpitFactory.ControlLayer);
+                Camera[] cameras = rig.GetComponentsInChildren<Camera>(true);
+                Assert.That(cameras.Length, Is.EqualTo(2));
+                foreach (Camera camera in cameras)
+                {
+                    Assert.That(camera.enabled, Is.False, "rendered on a budget, not every frame");
+                    Assert.That(camera.targetTexture, Is.Not.Null);
+                    Assert.That(camera.targetTexture.width, Is.LessThanOrEqualTo(256));
+                    Assert.That((camera.cullingMask & (1 << CabCockpitFactory.ControlLayer)) == 0, Is.True);
+                    Assert.That(Vector3.Dot(camera.transform.forward, rig.transform.forward), Is.LessThan(-0.9f), "looks back");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(rig);
+            }
+        }
+
         private static Transform FindByPrefix(Transform parent, string prefix)
         {
             foreach (Transform child in parent)

@@ -101,6 +101,20 @@ namespace SortingStation
             if (stationSigns == null) return;
             for (int i = 0; i < stationSigns.Length; i++)
                 if (stationSigns[i] != null) stationSigns[i].text = stationName;
+            // Resize each board to the new name (boards stand at the same spot as their text).
+            foreach (Transform child in transform)
+            {
+                if (!child.name.StartsWith("StationSignBoard")) continue;
+                for (int i = 0; i < stationSigns.Length; i++)
+                {
+                    TextMesh sign = stationSigns[i];
+                    if (sign != null && (sign.transform.position - child.position).sqrMagnitude < 0.04f)
+                    {
+                        CabWorld3DPrototypeFactory.FitSignBoard(child, sign);
+                        break;
+                    }
+                }
+            }
         }
 
         public void SetHeadlights(bool enabled)

@@ -216,4 +216,4 @@ MonoBehaviour:
   stationApproachDistance: 45
   stationCrawlStartDistance: 4
   stationCrawlSpeed01: 0.09
-  stationStopTolerance: 2.8
+  stationStopTolerance: 1.6
