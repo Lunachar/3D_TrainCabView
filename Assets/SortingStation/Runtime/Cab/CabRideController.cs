@@ -102,10 +102,18 @@ namespace SortingStation
         private int trainNumber;
         private WeatherType lastDispatcherWeather = (WeatherType)(-1);
         private bool throttleGripPressed;
+        private CabLookAround lookAround;
+        private AccessibleButton radioPanelToggle;
+        private bool screenTapCandidate;
+        private Vector2 screenTapStart;
         // Creating the 3D route can take a noticeable fraction of a second on a tablet.  Never
         // feed that loading frame into the motion model: it used to move the route by one large
         // step just as the first trees appeared, which looked like the train briefly reversed.
         private bool discardFirstMotionFrame = true;
+
+        /// <summary>Full 3D cab: the driver's camera renders the cab and the world; UI is a HUD on top.</summary>
+        private bool Immersive => services != null && services.Preferences.cabWorldMode == CabWorldMode.Immersive3D;
+        private bool UsesPhysicalCockpit => services != null && services.Preferences.cabWorldMode != CabWorldMode.Legacy2D;
 
         public static Rect StatusDisplayRect => new Rect(0.585f, 0.345f, 0.120f, 0.100f);
         public static Rect SpeedDisplayRect => new Rect(0.720f, 0.365f, 0.135f, 0.110f);
@@ -172,6 +180,11 @@ namespace SortingStation
             interior3D?.SetState(motion.Throttle01, brake01, motion.SpeedKph, cabinLight || tunnelAutoLight,
                 headlights || tunnelAutoLight, wipers, radio, stationStop != null && stationStop.DoorsAreOpen,
                 windowHeater, Interior3DStatus(), dt);
+            if (Immersive)
+            {
+                SyncImmersiveOverlays();
+                HandleCockpitTap();
+            }
         }
 
         private string Interior3DStatus()
@@ -297,11 +310,13 @@ namespace SortingStation
             root = UiFactory.CreateScreen("CabRideCanvas", out canvas);
             AppSettings theme = services.Settings;
 
-            RectTransform background = UiFactory.Panel("CabBackground", root, new Color(0.025f, 0.045f, 0.055f, 1f));
+            // In immersive mode the camera draws the whole screen; the overlay canvas must stay see-through.
+            RectTransform background = UiFactory.Panel("CabBackground", root,
+                Immersive ? Color.clear : new Color(0.025f, 0.045f, 0.055f, 1f));
             UiFactory.Stretch(background);
             background.GetComponent<Image>().raycastTarget = false;
 
-            stage = UiFactory.Panel("CabStage", root, Color.black);
+            stage = UiFactory.Panel("CabStage", root, Immersive ? Color.clear : Color.black);
             stage.anchorMin = stage.anchorMax = new Vector2(0.5f, 0.5f);
             stage.pivot = new Vector2(0.5f, 0.5f);
             stage.anchoredPosition = Vector2.zero;
@@ -312,7 +327,13 @@ namespace SortingStation
             fitter.aspectRatio = 1.5f;
             Canvas.ForceUpdateCanvases();
 
-            if (services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D)
+            if (Immersive)
+            {
+                CabWorld3DRenderer immersiveWorld = stage.gameObject.AddComponent<CabWorld3DRenderer>();
+                immersiveWorld.InitializeImmersive(stage, services.CabRide, services.CabScenery, services.Preferences);
+                world = immersiveWorld;
+            }
+            else if (services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D)
             {
                 CabWorld3DRenderer hybrid = stage.gameObject.AddComponent<CabWorld3DRenderer>();
                 hybrid.Initialize(stage, services.CabRide, services.CabScenery, services.Preferences);
@@ -342,7 +363,11 @@ namespace SortingStation
             Image overlay = UiFactory.Image("CabOverlay", cabInterior, overlaySprite, Color.white, false);
             UiFactory.Stretch(overlay.rectTransform);
             overlay.raycastTarget = false;
-            if (overlay.sprite == null)
+            if (Immersive)
+            {
+                overlay.gameObject.SetActive(false);
+            }
+            else if (overlay.sprite == null)
             {
                 overlay.color = new Color(0.18f, 0.22f, 0.25f, 0.88f);
             }
@@ -357,7 +382,15 @@ namespace SortingStation
 
             // Hybrid 3D keeps a compact physical-console slice above the photographic cab.  The
             // established 2D controls are built afterwards and remain the sole input layer.
-            if (services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D)
+            if (Immersive && world is CabWorld3DRenderer immersiveView)
+            {
+                interior3D = stage.gameObject.AddComponent<CabInterior3DRenderer>();
+                interior3D.InitializeImmersive(immersiveView.DriverRig, immersiveView.WorldCamera,
+                    services.Preferences.motionLevel, ActivateControl, AcknowledgeDispatcher);
+                lookAround = immersiveView.WorldCamera.gameObject.AddComponent<CabLookAround>();
+                DisableOtherScreenCameras(immersiveView.WorldCamera);
+            }
+            else if (services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D)
             {
                 interior3D = stage.gameObject.AddComponent<CabInterior3DRenderer>();
                 interior3D.Initialize(cabInterior, services.Preferences.cabWorldQuality,
@@ -370,6 +403,7 @@ namespace SortingStation
             BuildControls();
             BuildDispatcherButton();
             BuildRadioPlayer();
+            if (Immersive) BuildRadioPanelToggle();
             BuildKeychainInteraction();
             BuildHeader();
             BuildGentleInteractions();
@@ -380,6 +414,128 @@ namespace SortingStation
             UpdateToggleVisual(CabControlAction.Radio, false);
             UpdateToggleVisual(CabControlAction.Doors, false);
             UpdateToggleVisual(CabControlAction.WindowHeater, false);
+            if (Immersive) HideFlatCabDecor();
+        }
+
+        /// <summary>
+        /// The 3D cab has its own wipers, lamps, keychain and instrument screens. Only the status
+        /// line stays as a HUD message, moved to the top of the screen under the route name.
+        /// </summary>
+        /// <summary>
+        /// The ride scene has its own UI camera that clears the screen. It would paint over the
+        /// driver's view, so in immersive mode only the driver's camera draws to the screen.
+        /// </summary>
+        private static void DisableOtherScreenCameras(Camera driverCamera)
+        {
+            Camera[] cameras = Camera.allCameras;
+            for (int i = 0; i < cameras.Length; i++)
+            {
+                Camera other = cameras[i];
+                if (other != null && other != driverCamera && other.targetTexture == null) other.enabled = false;
+            }
+        }
+
+        private void HideFlatCabDecor()
+        {
+            if (headlightGlow != null) headlightGlow.gameObject.SetActive(false);
+            if (leftWiper != null) leftWiper.gameObject.SetActive(false);
+            if (rightWiper != null) rightWiper.gameObject.SetActive(false);
+            if (cabinGlow != null) cabinGlow.gameObject.SetActive(false);
+            if (instrumentGlow != null) instrumentGlow.gameObject.SetActive(false);
+            if (speedDisplay != null) speedDisplay.transform.parent.gameObject.SetActive(false);
+            if (radioDisplay != null) radioDisplay.gameObject.SetActive(false);
+            if (keychain != null) keychain.gameObject.SetActive(false);
+            if (status != null)
+            {
+                RectTransform statusScreen = (RectTransform)status.transform.parent;
+                statusScreen.SetParent(root, false);
+                UiFactory.SetRect(statusScreen, new Vector2(0.31f, 0.80f), new Vector2(0.69f, 0.895f), Vector2.zero, Vector2.zero);
+                statusScreen.localRotation = Quaternion.identity;
+            }
+        }
+
+        /// <summary>
+        /// Lays every accessible control button over the screen area of its 3D prop, at least the
+        /// minimum touch size. Taps, keyboard focus and screen-reader names keep working unchanged.
+        /// </summary>
+        private void SyncImmersiveOverlays()
+        {
+            if (interior3D == null) return;
+            foreach (KeyValuePair<CabControlAction, AccessibleButton> pair in controls)
+                SyncOverlay(pair.Value, pair.Key, false);
+            SyncOverlay(dispatcherButton, CabControlAction.DispatcherRadio, true);
+        }
+
+        private void SyncOverlay(AccessibleButton button, CabControlAction action, bool dispatcherAcknowledgement)
+        {
+            if (button == null || !interior3D.TryGetControlScreenRect(action, dispatcherAcknowledgement, out Rect screenRect)) return;
+            RectTransform target = button.RectTransform;
+            RectTransform parent = target.parent as RectTransform;
+            if (parent == null ||
+                !RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenRect.min, null, out Vector2 min) ||
+                !RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenRect.max, null, out Vector2 max)) return;
+            float minimum = services.Settings.MinimumTargetSize;
+            Vector2 size = Vector2.Max(max - min, new Vector2(minimum, minimum));
+            target.anchorMin = target.anchorMax = new Vector2(0.5f, 0.5f);
+            target.pivot = new Vector2(0.5f, 0.5f);
+            target.sizeDelta = size;
+            button.SetRestingAnchoredPosition((min + max) * 0.5f - parent.rect.center);
+        }
+
+        /// <summary>
+        /// A short tap on the cab that did not land on a UI element (for example the radio switch
+        /// or a control partly hidden behind another button) still operates the 3D control under it.
+        /// </summary>
+        private void HandleCockpitTap()
+        {
+            Pointer pointer = Pointer.current;
+            if (pointer == null || interior3D == null) return;
+            Vector2 position = pointer.position.ReadValue();
+            if (pointer.press.wasPressedThisFrame)
+            {
+                screenTapCandidate = EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject();
+                screenTapStart = position;
+            }
+            else if (pointer.press.wasReleasedThisFrame && screenTapCandidate)
+            {
+                screenTapCandidate = false;
+                if ((position - screenTapStart).sqrMagnitude > 18f * 18f) return;
+                if (!interior3D.TryHitControl(position, out CabControlAction action, out bool isDispatcherAcknowledgement)) return;
+                services.Audio.Play(SoundCue.Tap);
+                interior3D.PressControl(isDispatcherAcknowledgement ? CabControlAction.DispatcherRadio : action);
+                if (isDispatcherAcknowledgement) AcknowledgeDispatcher();
+                else ActivateControl(action);
+            }
+        }
+
+        /// <summary>
+        /// In the 3D cab the radio player would cover the left half of the desk, so it folds
+        /// away behind a small "Радио" button in the corner and opens on demand.
+        /// </summary>
+        private void BuildRadioPanelToggle()
+        {
+            AppSettings theme = services.Settings;
+            radioPanelToggle = UiFactory.Button("RadioPanelToggle", stage, focusGroup, "♪ Радио",
+                new Color(0.025f, 0.070f, 0.088f, 0.92f), theme.SelectedColor, ToggleRadioPanel, theme.ControlFontSize);
+            radioPanelToggle.SetAccessibleName("Открыть или закрыть радиоплеер");
+            SetRadioPanelOpen(false);
+            UpdateRadioPlayerLayout(true);
+        }
+
+        private void ToggleRadioPanel()
+        {
+            SetRadioPanelOpen(radioPlayer != null && !radioPlayer.gameObject.activeSelf);
+        }
+
+        private void SetRadioPanelOpen(bool open)
+        {
+            if (radioPlayer != null) radioPlayer.gameObject.SetActive(open);
+            if (!open)
+            {
+                playlistOpen = false;
+                if (radioPlaylist != null) radioPlaylist.gameObject.SetActive(false);
+            }
+            if (radioPanelToggle != null) radioPanelToggle.SetSelected(open);
         }
 
         private void BuildGentleInteractions()
@@ -479,7 +635,7 @@ namespace SortingStation
 
             // In Hybrid3D the visible charm is rendered inside the physical cockpit. The same
             // generously sized transparent RectTransform stays here for touch and keyboard access.
-            if (services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D && interior3D != null) return;
+            if (interior3D != null) return;
 
             Sprite charmSprite = services.CabScenery != null ? services.CabScenery.Keychain : null;
             if (charmSprite != null)
@@ -637,7 +793,7 @@ namespace SortingStation
             // In the 3D cockpit we make only its visual plate quiet so the physical prop below
             // can be seen; selection, keyboard focus and active state remain high-contrast.
             CabWorld3DSettings cockpitSettings = Resources.Load<CabWorld3DSettings>("Configuration/CabWorld3DSettings");
-            bool usePhysicalCockpit = services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D;
+            bool usePhysicalCockpit = UsesPhysicalCockpit;
             float quietOverlayAlpha = usePhysicalCockpit && cockpitSettings != null
                 ? cockpitSettings.CockpitAccessibleOverlayOpacity : 0.68f;
 
@@ -645,7 +801,9 @@ namespace SortingStation
             for (int i = 0; i < bindings.Length; i++)
             {
                 CabControlBinding binding = bindings[i];
-                if (binding.action == CabControlAction.Radio || binding.action == CabControlAction.Throttle) continue;
+                if (binding.action == CabControlAction.Radio) continue;
+                // In immersive mode the throttle is the 3D lever itself; otherwise it is the HUD slider.
+                if (binding.action == CabControlAction.Throttle && !Immersive) continue;
                 // The whole rectangle remains a large accessible hit target, while the
                 // visible control is a compact instrument fitted into the photographed panel.
                 Color idle = new Color(0.035f, 0.045f, 0.050f, quietOverlayAlpha);
@@ -720,9 +878,21 @@ namespace SortingStation
                     labelShadow.effectDistance = new Vector2(1.5f, -1.5f);
                 }
                 controls[binding.action] = button;
+                if (Immersive) MakeInvisibleOverlay(button, statePlate);
             }
 
-            BuildThrottleSlider();
+            if (Immersive)
+            {
+                AccessibleButton lever = controls[CabControlAction.Throttle];
+                lever.PointerPressed += SetThrottleFromLever;
+                lever.PointerDragged += SetThrottleFromLever;
+                lever.ConfigurePersistentPress(false, 0f);
+                lever.SetPressScale(1f);
+            }
+            else
+            {
+                BuildThrottleSlider();
+            }
 
             AccessibleButton brakeButton = controls[CabControlAction.Brake];
             brakeButton.PointerPressed += BeginBrake;
@@ -744,7 +914,48 @@ namespace SortingStation
             brakeGrip.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             brakeGrip.rectTransform.sizeDelta = new Vector2(32f, 32f);
             brakeGrip.rectTransform.anchoredPosition = Vector2.zero;
+            if (Immersive)
+            {
+                brakeTrack.gameObject.SetActive(false);
+                brakeGrip.gameObject.SetActive(false);
+            }
+        }
 
+        /// <summary>
+        /// Keeps the button as a transparent touch and focus target over its 3D prop: no plate,
+        /// artwork or caption, but the yellow keyboard focus outline still shows.
+        /// </summary>
+        private static void MakeInvisibleOverlay(AccessibleButton button, Graphic statePlate)
+        {
+            // The hidden plate takes the state colours, which leaves the button's own background clear.
+            if (statePlate != null)
+            {
+                button.SetStateGraphic(statePlate);
+                statePlate.gameObject.SetActive(false);
+            }
+            button.ConfigurePersistentPress(false, 0f);
+            button.UseFocusFrame();
+            Transform artwork = button.transform.Find("Artwork");
+            if (artwork != null) artwork.gameObject.SetActive(false);
+            if (button.Label != null) button.Label.gameObject.SetActive(false);
+        }
+
+        /// <summary>Throttle lever in the 3D cab: slide up to add traction, down to reduce it.</summary>
+        private void SetThrottleFromLever(PointerEventData eventData)
+        {
+            if (!departureAuthorized)
+            {
+                services.Audio.Play(SoundCue.GentleError);
+                PromptDeparture();
+                return;
+            }
+            if (automaticStop) return;
+            AccessibleButton lever = controls[CabControlAction.Throttle];
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(lever.RectTransform,
+                    eventData.position, eventData.pressEventCamera, out Vector2 local)) return;
+            Rect rect = lever.RectTransform.rect;
+            motion.SetThrottle(Mathf.Clamp01(Mathf.InverseLerp(rect.yMin + rect.height * 0.12f, rect.yMax - rect.height * 0.12f, local.y)));
+            UpdateThrottleVisual();
         }
 
         private void BuildThrottleSlider()
@@ -913,6 +1124,12 @@ namespace SortingStation
             // Keep the player visually in the lower-left corner, but leave enough room for its
             // rounded glow and shadow after the 3:2 cab stage is vertically cropped on 16:9.
             Vector2 playerMin = visibleMargins + new Vector2(0.008f, 0.035f);
+            if (radioPanelToggle != null)
+            {
+                Vector2 toggleMin = visibleMargins + new Vector2(0.008f, 0.02f);
+                UiFactory.SetRect(radioPanelToggle.RectTransform, toggleMin, toggleMin + new Vector2(0.13f, 0.1f), Vector2.zero, Vector2.zero);
+                playerMin = toggleMin + new Vector2(0f, 0.115f);
+            }
             Vector2 playerMax = playerMin + new Vector2(0.312f, 0.355f);
             if (TryGetControlRect(CabControlAction.Radio, out Vector2 configuredPlayerMin, out Vector2 configuredPlayerMax))
             {
@@ -964,7 +1181,7 @@ namespace SortingStation
             UiFactory.SetRect(dispatcherButton.RectTransform, new Vector2(0.752f, 0.785f), new Vector2(0.865f, 0.905f),
                 Vector2.zero, Vector2.zero);
             dispatcherButton.ConfigurePersistentPress(false, 8f);
-            if (services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D)
+            if (UsesPhysicalCockpit)
             {
                 dispatcherButton.ConfigurePointerActivation(eventData =>
                 {
@@ -985,6 +1202,7 @@ namespace SortingStation
             UiFactory.SetRect(dispatcherLamp.rectTransform, new Vector2(0.19f, 0.19f), new Vector2(0.81f, 0.81f),
                 Vector2.zero, Vector2.zero);
             dispatcherLamp.transform.SetAsFirstSibling();
+            if (Immersive) MakeInvisibleOverlay(dispatcherButton, dispatcherLamp);
         }
 
         private void PromptDeparture()
@@ -1788,7 +2006,7 @@ namespace SortingStation
         private void AnimateCabSway(float deltaTime)
         {
             if (cabInterior == null) return;
-            if (services.Preferences.motionLevel == MotionLevel.Off)
+            if (services.Preferences.motionLevel == MotionLevel.Off || Immersive)
             {
                 cabinSwayOffset = Vector2.zero;
                 cabinSwayVelocity = Vector2.zero;

@@ -18,6 +18,13 @@ namespace SortingStation
         private RenderTexture renderTexture;
         private RawImage worldOutput;
         private Camera worldCamera;
+        // Immersive mode: the world lives outside the UI canvas and the camera draws straight to
+        // the screen from inside the cab. The rig carries the cab; the head (camera) can look around.
+        private bool immersive;
+        private Transform sceneRoot;
+        private Transform driverRig;
+        public const float DriverEyeHeight = 3.25f;
+        public const float DriverHeadPitch = 7f;
         private Light sun;
         private Light headlight;
         private Transform nativeSkyRoot;
@@ -53,6 +60,9 @@ namespace SortingStation
         public RouteSegmentDefinition CurrentSegment => journey != null ? journey.CurrentSegment : null;
         public string CurrentSegmentName => CurrentSegment != null ? CurrentSegment.DisplayName : "3D-маршрут";
         public RectTransform Viewport => viewport;
+        public Camera WorldCamera => worldCamera;
+        public Transform DriverRig => driverRig;
+        private Transform SceneRoot => sceneRoot != null ? sceneRoot : transform;
         public RectTransform SkyEffectsLayer => skyLayer != null ? skyLayer : viewport;
         public RectTransform HorizonEffectsLayer => horizonLayer != null ? horizonLayer : viewport;
         public bool DrawsOwnSky => true;
@@ -60,6 +70,38 @@ namespace SortingStation
         public static bool ShouldShowNativeSun(bool badWeather, float sunArc, bool isInsideTunnel)
         {
             return !badWeather && !isInsideTunnel && sunArc > 0.075f;
+        }
+
+        /// <summary>
+        /// Immersive 3D: no render texture and no window mask. The world is rendered full screen
+        /// by the driver's camera; the UI canvas (an overlay) stays on top for the HUD.
+        /// </summary>
+        public void InitializeImmersive(RectTransform stage, CabRideDefinition definition, CabSceneryCatalog sceneryCatalog,
+            UserPreferences userPreferences)
+        {
+            ride = definition;
+            catalog = sceneryCatalog;
+            preferences = userPreferences ?? new UserPreferences();
+            settings = Resources.Load<CabWorld3DSettings>("Configuration/CabWorld3DSettings");
+            immersive = true;
+            journey = new CabJourneyRuntime(catalog != null ? catalog.RouteSegments : null, ride != null ? ride.RouteSeed : 1);
+            journey.SegmentChanged += OnJourneySegmentChanged;
+
+            // The journey's 2D effects still need UI layers; in immersive mode they span the stage.
+            viewport = UiFactory.Panel("World3DViewport", stage, Color.clear);
+            UiFactory.Stretch(viewport);
+            viewport.GetComponent<Image>().raycastTarget = false;
+            skyLayer = CreateLayer("SkyEffects", viewport);
+            horizonLayer = CreateLayer("HorizonEffects", viewport);
+            // The journey's flat 2D scenery, sun glare and weather sheets were drawn for the photo
+            // window; over a full-screen 3D cab they would cover the dashboard. They stay hidden
+            // until weather and route events are rebuilt in 3D.
+            viewport.gameObject.SetActive(false);
+
+            sceneRoot = new GameObject("CabWorld3DScene").transform;
+            BuildCameraAndLight();
+            BuildRoute();
+            ApplyRoutePose();
         }
 
         public void Initialize(RectTransform stage, CabRideDefinition definition, CabSceneryCatalog sceneryCatalog,
@@ -200,16 +242,33 @@ namespace SortingStation
                 pipelineOverridden = true;
             }
             GameObject cameraObject = new GameObject("CabWorld3DCamera");
-            cameraObject.transform.SetParent(transform, false);
+            if (immersive)
+            {
+                driverRig = new GameObject("DriverRig").transform;
+                driverRig.SetParent(SceneRoot, false);
+                driverRig.localPosition = new Vector3(0f, DriverEyeHeight, -6f);
+                cameraObject.name = "DriverHeadCamera";
+                cameraObject.tag = "MainCamera";
+                cameraObject.transform.SetParent(driverRig, false);
+            }
+            else
+            {
+                cameraObject.transform.SetParent(transform, false);
+            }
             worldCamera = cameraObject.AddComponent<Camera>();
-            worldCamera.transform.localPosition = new Vector3(0f, 3.35f, -8f);
-            worldCamera.transform.localRotation = Quaternion.Euler(16.5f, 0f, 0f);
+            worldCamera.transform.localPosition = immersive ? Vector3.zero : new Vector3(0f, 3.35f, -8f);
+            worldCamera.transform.localRotation = Quaternion.Euler(immersive ? DriverHeadPitch : 16.5f, 0f, 0f);
             worldCamera.fieldOfView = settings != null ? settings.CameraFieldOfView : 61f;
-            worldCamera.nearClipPlane = 0.1f;
+            worldCamera.nearClipPlane = immersive ? 0.04f : 0.1f;
             worldCamera.farClipPlane = settings != null ? settings.FarClip : 240f;
             worldCamera.clearFlags = CameraClearFlags.SolidColor;
             worldCamera.backgroundColor = settings != null ? settings.ClearSky : new Color(0.5f, 0.75f, 0.9f);
-            worldCamera.targetTexture = renderTexture;
+            worldCamera.targetTexture = immersive ? null : renderTexture;
+            if (immersive)
+            {
+                worldCamera.fieldOfView = 58f;
+                worldCamera.depth = -1f;
+            }
             worldCamera.allowHDR = false;
             worldCamera.allowMSAA = preferences.cabWorldQuality != CabWorldQuality.Performance;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
@@ -217,7 +276,7 @@ namespace SortingStation
             RenderSettings.ambientIntensity = 1f;
 
             GameObject lightObject = new GameObject("CabWorld3DSun");
-            lightObject.transform.SetParent(transform, false);
+            lightObject.transform.SetParent(SceneRoot, false);
             lightObject.transform.rotation = Quaternion.Euler(42f, -28f, 0f);
             sun = lightObject.AddComponent<Light>();
             sun.type = LightType.Directional;
@@ -226,7 +285,7 @@ namespace SortingStation
             sun.shadows = preferences.cabWorldQuality == CabWorldQuality.Performance ? LightShadows.None : LightShadows.Hard;
 
             GameObject headlightObject = new GameObject("TrainHeadlight3D");
-            headlightObject.transform.SetParent(transform, false);
+            headlightObject.transform.SetParent(SceneRoot, false);
             headlightObject.transform.localPosition = new Vector3(0f, 2.15f, -2.8f);
             headlightObject.transform.localRotation = Quaternion.Euler(4f, 0f, 0f);
             headlight = headlightObject.AddComponent<Light>();
@@ -239,7 +298,7 @@ namespace SortingStation
             headlight.spotAngle = 28f;
             headlight.shadows = LightShadows.None;
             headlight.enabled = false;
-            BuildNativeSky(cameraObject.transform);
+            BuildNativeSky(immersive ? driverRig : cameraObject.transform);
         }
 
         private void BuildNativeSky(Transform cameraTransform)
@@ -508,9 +567,9 @@ namespace SortingStation
             bool useFallback = prefab == null || prefabAuthoring == null || !prefabAuthoring.HasPassengerStations ||
                                prefabAuthoring.BuiltRouteVersion < CabWorld3DPrototypeFactory.CurrentRouteVersion ||
                                !MatchesJourneyCycle(prefabAuthoring);
-            GameObject route = useFallback ? CabWorld3DPrototypeFactory.Create(transform,
+            GameObject route = useFallback ? CabWorld3DPrototypeFactory.Create(SceneRoot,
                 journey.CycleLength, settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f)
-                : Instantiate(prefab, transform);
+                : Instantiate(prefab, SceneRoot);
             Cab3DRouteAuthoring candidate = route.GetComponent<Cab3DRouteAuthoring>();
             // A project may be opened between code changes and the editable prefab can still be an
             // earlier version. Keep the ride functional until the editor rebuild command updates it.
@@ -519,7 +578,7 @@ namespace SortingStation
                 !MatchesJourneyCycle(candidate)))
             {
                 Destroy(route);
-                route = CabWorld3DPrototypeFactory.Create(transform, journey.CycleLength,
+                route = CabWorld3DPrototypeFactory.Create(SceneRoot, journey.CycleLength,
                     settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f);
             }
             route.name = prefab != null ? "Editable3DRoute" : "RuntimeFallback3DRoute";
@@ -579,6 +638,7 @@ namespace SortingStation
         private void OnDestroy()
         {
             if (journey != null) journey.SegmentChanged -= OnJourneySegmentChanged;
+            if (sceneRoot != null) Destroy(sceneRoot.gameObject);
             if (renderTexture != null)
             {
                 renderTexture.Release();

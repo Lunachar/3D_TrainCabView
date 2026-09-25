@@ -30,7 +30,9 @@ namespace SortingStation
     public enum CabWorldMode
     {
         Legacy2D,
-        Hybrid3D
+        Hybrid3D,
+        /// <summary>Full 3D: the driver sits in a 3D cab and sees the 3D world through its windscreen.</summary>
+        Immersive3D
     }
 
     public enum CabWorldQuality

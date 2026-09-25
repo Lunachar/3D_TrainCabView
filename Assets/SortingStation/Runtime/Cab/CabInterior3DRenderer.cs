@@ -46,6 +46,52 @@ namespace SortingStation
         private readonly Dictionary<CabControlAction, Material> indicatorMaterials = new Dictionary<CabControlAction, Material>();
         private readonly Dictionary<Transform, Quaternion> gaugeRestRotations = new Dictionary<Transform, Quaternion>();
         private readonly Dictionary<Transform, Quaternion> wiperRestRotations = new Dictionary<Transform, Quaternion>();
+        private readonly Dictionary<int, BoxCollider> screenRectCache = new Dictionary<int, BoxCollider>();
+        // The hybrid prototype is modelled in large units; the immersive cab is in metres, so
+        // button travel and cabin sway are scaled down there. Sway also follows the Motion setting.
+        private float pressTravelScale = 1f;
+        private float swayScale = 1f;
+        private bool immersive;
+
+        /// <summary>
+        /// Immersive mode: the realistic cab is built in metres around the driver's eye and seen
+        /// directly by the main camera, which also renders the world. No render texture is used.
+        /// </summary>
+        public void InitializeImmersive(Transform driverRig, Camera driverCamera, MotionLevel motion,
+            System.Action<CabControlAction> onPhysicalControl, System.Action onDispatcherAcknowledgement)
+        {
+            if (driverRig == null || driverCamera == null || interiorCamera != null) return;
+            cockpitSettings = Resources.Load<CabWorld3DSettings>("Configuration/CabWorld3DSettings");
+            interiorCamera = driverCamera;
+            physicalControlHandler = onPhysicalControl;
+            dispatcherAcknowledgementHandler = onDispatcherAcknowledgement;
+            immersive = true;
+            pressTravelScale = 0.16f;
+            swayScale = motion == MotionLevel.Off ? 0f : motion == MotionLevel.Reduced ? 0.04f : 0.12f;
+
+            interior = CabCockpitFactory.Create(driverRig).transform;
+            interiorRestPosition = interior.localPosition;
+            interiorRestRotation = interior.localRotation;
+            CacheAnchors();
+
+            cabinGlowLight = CreateCabLight("CabInteriorWarmGlow", new Vector3(0f, 0.52f, 0.1f),
+                new Color(1f, 0.72f, 0.42f), 0f, 3.2f);
+            // Soft daylight bouncing in through the windscreen; keeps the desk readable without
+            // a hot spot. It doubles as the instrument glow at night (see SetState).
+            instrumentGlowLight = CreateCabLight("CabInteriorDaylightFill", new Vector3(0f, 0.35f, 0.25f),
+                new Color(0.92f, 0.95f, 1f), 0.75f, 2.6f);
+        }
+
+        /// <summary>Hit test for the immersive cab, straight from a screen position.</summary>
+        public static bool TryHitControlOnScreen(Camera rayCamera, Vector2 screenPoint,
+            out CabControlAction action, out bool isDispatcherAcknowledgement)
+        {
+            action = default;
+            isDispatcherAcknowledgement = false;
+            if (rayCamera == null) return false;
+            return TryHitNearestControl(rayCamera.ScreenPointToRay(screenPoint), rayCamera.farClipPlane,
+                out action, out isDispatcherAcknowledgement);
+        }
 
         public void Initialize(RectTransform parent, CabWorldQuality quality, System.Action<CabControlAction> onPhysicalControl,
             System.Action onDispatcherAcknowledgement)
@@ -194,7 +240,7 @@ namespace SortingStation
             if (cabinGlowLight != null)
                 cabinGlowLight.intensity = Mathf.MoveTowards(cabinGlowLight.intensity,
                     cabinLightOn ? cockpitSettings != null ? cockpitSettings.CockpitCabinLightIntensity : 1.05f : 0f, deltaTime * 3.4f);
-            if (instrumentGlowLight != null)
+            if (instrumentGlowLight != null && !immersive)
                 instrumentGlowLight.intensity = Mathf.MoveTowards(instrumentGlowLight.intensity,
                     headlightsOn || cabinLightOn ? 0.52f : 0.18f, deltaTime * 3.4f);
             SetCeilingLampGlow(cabinLightOn);
@@ -244,9 +290,17 @@ namespace SortingStation
             if (rect.width <= 0f || rect.height <= 0f) return false;
             float x = Mathf.Clamp01((local.x - rect.xMin) / rect.width);
             float y = Mathf.Clamp01((local.y - rect.yMin) / rect.height);
+            return TryHitNearestControl(rayCamera.ViewportPointToRay(new Vector3(x, y, 0f)), rayCamera.farClipPlane,
+                out action, out isDispatcherAcknowledgement);
+        }
+
+        private static bool TryHitNearestControl(Ray ray, float distance, out CabControlAction action,
+            out bool isDispatcherAcknowledgement)
+        {
+            action = default;
+            isDispatcherAcknowledgement = false;
             Physics.SyncTransforms();
-            Ray ray = rayCamera.ViewportPointToRay(new Vector3(x, y, 0f));
-            RaycastHit[] hits = Physics.RaycastAll(ray, rayCamera.farClipPlane, 1 << CockpitLayer,
+            RaycastHit[] hits = Physics.RaycastAll(ray, distance, 1 << CockpitLayer,
                 QueryTriggerInteraction.Ignore);
             Cab3DControlAnchor nearestAnchor = null;
             float nearestDistance = float.MaxValue;
@@ -270,12 +324,63 @@ namespace SortingStation
 
         public bool TryHitControl(Vector2 screenPoint, out CabControlAction action)
         {
-            return TryHitControl(interiorCamera, outputRect, screenPoint, out action);
+            return TryHitControl(screenPoint, out action, out _);
         }
 
         public bool TryHitControl(Vector2 screenPoint, out CabControlAction action, out bool isDispatcherAcknowledgement)
         {
+            if (outputRect == null)
+                return TryHitControlOnScreen(interiorCamera, screenPoint, out action, out isDispatcherAcknowledgement);
             return TryHitControl(interiorCamera, outputRect, screenPoint, out action, out isDispatcherAcknowledgement);
+        }
+
+        /// <summary>
+        /// Screen rectangle covered by a control's touch area (immersive mode). The accessible
+        /// button is laid over it so taps and the keyboard focus outline line up with the 3D prop.
+        /// </summary>
+        public bool TryGetControlScreenRect(CabControlAction action, bool dispatcherAcknowledgement, out Rect screenRect)
+        {
+            screenRect = default;
+            if (interiorCamera == null || interior == null) return false;
+            int key = (int)action * 2 + (dispatcherAcknowledgement ? 1 : 0);
+            if (!screenRectCache.TryGetValue(key, out BoxCollider hitArea))
+            {
+                hitArea = FindHitArea(action, dispatcherAcknowledgement);
+                screenRectCache[key] = hitArea;
+            }
+            if (hitArea == null) return false;
+            Vector3 center = hitArea.center;
+            Vector3 extents = hitArea.size * 0.5f;
+            Transform owner = hitArea.transform;
+            Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
+            Vector2 max = new Vector2(float.MinValue, float.MinValue);
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 local = center + new Vector3(
+                    (corner & 1) == 0 ? -extents.x : extents.x,
+                    (corner & 2) == 0 ? -extents.y : extents.y,
+                    (corner & 4) == 0 ? -extents.z : extents.z);
+                Vector3 screen = interiorCamera.WorldToScreenPoint(owner.TransformPoint(local));
+                if (screen.z <= 0f) return false;
+                min = Vector2.Min(min, screen);
+                max = Vector2.Max(max, screen);
+            }
+            screenRect = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+            return true;
+        }
+
+        private BoxCollider FindHitArea(CabControlAction action, bool dispatcherAcknowledgement)
+        {
+            Cab3DControlAnchor[] found = interior.GetComponentsInChildren<Cab3DControlAnchor>(true);
+            for (int i = 0; i < found.Length; i++)
+            {
+                Cab3DControlAnchor anchor = found[i];
+                if (anchor == null || !anchor.IsTouchable || anchor.Action != action ||
+                    anchor.IsDispatcherAcknowledgement != dispatcherAcknowledgement) continue;
+                BoxCollider hitArea = anchor.GetComponent<BoxCollider>();
+                if (hitArea != null && hitArea.enabled) return hitArea;
+            }
+            return null;
         }
 
         /// <summary>Starts the physical prop's press animation as soon as its displayed surface is touched.</summary>
@@ -420,8 +525,10 @@ namespace SortingStation
             float speed01 = Mathf.Clamp01(speedKph / 120f);
             float railVibration = Mathf.Sin(Time.unscaledTime * (4.2f + speed01 * 8.5f)) * speed01;
             float accelerationLean = traction01 * 0.26f - brake01 * 0.40f;
-            Vector3 targetPosition = interiorRestPosition + new Vector3(railVibration * 0.035f, Mathf.Cos(Time.unscaledTime * 2.7f) * speed01 * 0.022f, 0f);
-            Quaternion targetRotation = interiorRestRotation * Quaternion.Euler(railVibration * 0.65f, 0f, accelerationLean);
+            Vector3 targetPosition = interiorRestPosition +
+                new Vector3(railVibration * 0.035f, Mathf.Cos(Time.unscaledTime * 2.7f) * speed01 * 0.022f, 0f) * swayScale;
+            Quaternion targetRotation = interiorRestRotation *
+                Quaternion.Euler(railVibration * 0.65f * swayScale, 0f, accelerationLean * swayScale);
             interior.localPosition = Vector3.Lerp(interior.localPosition, targetPosition, Mathf.Clamp01(deltaTime * 5.5f));
             interior.localRotation = Quaternion.Slerp(interior.localRotation, targetRotation, Mathf.Clamp01(deltaTime * 4.2f));
         }
@@ -503,7 +610,7 @@ namespace SortingStation
                 bool held = pressedUntil.TryGetValue(entry.Key, out float until) && Time.unscaledTime < until;
                 // The camera looks toward +Z, so a positive local-Z offset seats a button into
                 // the dashboard. Switches receive a smaller travel than the round controls.
-                float travel = entry.Key == CabControlAction.Doors || entry.Key == CabControlAction.Wipers ? 0.028f : 0.075f;
+                float travel = (entry.Key == CabControlAction.Doors || entry.Key == CabControlAction.Wipers ? 0.028f : 0.075f) * pressTravelScale;
                 for (int i = 0; i < entry.Value.Count; i++)
                 {
                     Transform target = entry.Value[i];
@@ -536,7 +643,10 @@ namespace SortingStation
                 Transform arm = wiperArms[i];
                 if (arm == null || !wiperRestRotations.TryGetValue(arm, out Quaternion rest)) continue;
                 float direction = arm.name.IndexOf("Left", System.StringComparison.OrdinalIgnoreCase) >= 0 ? 1f : -1f;
-                float sweep = enabled ? Mathf.Sin(Time.unscaledTime * 2.75f) * 34f * direction : 0f;
+                // The immersive cab parks its wipers flat, so they sweep up from there and back.
+                float sweep = !enabled ? 0f
+                    : immersive ? (0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * 2.75f)) * 78f * direction
+                    : Mathf.Sin(Time.unscaledTime * 2.75f) * 34f * direction;
                 arm.localRotation = Quaternion.Slerp(arm.localRotation, rest * Quaternion.Euler(0f, 0f, sweep),
                     Mathf.Clamp01(deltaTime * (enabled ? 16f : 7f)));
             }
@@ -549,7 +659,8 @@ namespace SortingStation
                 (statusText.IndexOf("ПРОВЕРКА", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                  statusText.IndexOf("НАЖМИ", System.StringComparison.OrdinalIgnoreCase) >= 0);
             float flash = requiresConfirmation ? 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 6.4f) : 0f;
-            Vector3 targetPosition = vigilanceButtonRestPosition + Vector3.forward * (requiresConfirmation ? 0.012f + flash * 0.026f : 0.075f);
+            Vector3 targetPosition = vigilanceButtonRestPosition +
+                Vector3.forward * (requiresConfirmation ? 0.012f + flash * 0.026f : 0.075f) * pressTravelScale;
             vigilanceButton.localPosition = Vector3.Lerp(vigilanceButton.localPosition, targetPosition, Mathf.Clamp01(deltaTime * 12f));
             if (vigilanceButtonMaterial == null) return;
             vigilanceButtonMaterial.SetColor("_EmissionColor", requiresConfirmation
@@ -561,7 +672,7 @@ namespace SortingStation
         {
             if (!indicatorMaterials.TryGetValue(action, out Material material) || material == null) return;
             material.SetColor("_EmissionColor", enabled ? emission * 1.35f : Color.black);
-            material.SetColor("_Color", enabled ? Color.Lerp(Color.white, emission, 0.72f) : new Color(0.14f, 0.16f, 0.18f));
+            material.color = enabled ? Color.Lerp(Color.white, emission, 0.72f) : new Color(0.14f, 0.16f, 0.18f);
         }
 
         private void SetScreenGlow(bool cabinLightOn, bool headlightsOn, bool radioOn, float deltaTime)
@@ -576,7 +687,7 @@ namespace SortingStation
         private static void SetScreenMaterial(Material material, Color emission)
         {
             if (material == null) return;
-            material.SetColor("_Color", new Color(0.008f, 0.075f, 0.025f));
+            material.color = new Color(0.008f, 0.075f, 0.025f);
             material.SetColor("_EmissionColor", emission);
         }
 

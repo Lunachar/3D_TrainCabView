@@ -21,6 +21,7 @@ namespace SortingStation
         private static TMP_FontAsset cachedBoldFont;
         private static TMP_FontAsset cachedSymbolFont;
         private static Sprite cachedRoundedSprite;
+        private static Sprite cachedFrameSprite;
 
         public static RectTransform CreateScreen(string name, out Canvas canvas)
         {
@@ -119,6 +120,43 @@ namespace SortingStation
             button.Initialize(group, label, text, normal, selected, settings.FocusColor, settings.PressedScale,
                 normalText, selectedText, activated);
             return button;
+        }
+
+        /// <summary>Hollow rounded frame (9-sliced), used as a focus ring around see-through buttons.</summary>
+        public static Sprite FrameSprite()
+        {
+            if (cachedFrameSprite != null) return cachedFrameSprite;
+            const int size = 64;
+            const float radius = 18f;
+            const float thickness = 7f;
+            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true)
+            {
+                name = "Runtime Focus Frame",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.DontUnloadUnusedAsset
+            };
+            Color[] pixels = new Color[size * size];
+            Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+            Vector2 half = new Vector2(size * 0.5f - radius, size * 0.5f - radius);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    Vector2 p = new Vector2(Mathf.Abs(x - center.x), Mathf.Abs(y - center.y));
+                    Vector2 q = new Vector2(Mathf.Max(p.x - half.x, 0f), Mathf.Max(p.y - half.y, 0f));
+                    float distance = q.magnitude - radius;
+                    float outer = Mathf.Clamp01(0.5f - distance);
+                    float inner = Mathf.Clamp01(0.5f - (-distance - thickness));
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, outer * inner);
+                }
+            }
+            texture.SetPixels(pixels);
+            texture.Apply(false, true);
+            cachedFrameSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f),
+                100f, 0u, SpriteMeshType.FullRect, new Vector4(24f, 24f, 24f, 24f));
+            cachedFrameSprite.name = "Runtime Focus Frame";
+            return cachedFrameSprite;
         }
 
         public static Sprite RoundedSprite()

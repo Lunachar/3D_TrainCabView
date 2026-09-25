@@ -5,7 +5,7 @@ namespace SortingStation
     [Serializable]
     public sealed class UserPreferences
     {
-        public int preferencesVersion = 4;
+        public int preferencesVersion = 5;
         public float masterVolume = 1f;
         public float musicVolume = 0.55f;
         public float effectsVolume = 0.85f;
@@ -17,7 +17,7 @@ namespace SortingStation
         public bool routePromptsEnabled = true;
         public bool gentleInteractionsEnabled = true;
         public bool gentleHintsEnabled = true;
-        public CabWorldMode cabWorldMode = CabWorldMode.Hybrid3D;
+        public CabWorldMode cabWorldMode = CabWorldMode.Immersive3D;
         public CabWorldQuality cabWorldQuality = CabWorldQuality.Balanced;
 
         public void Upgrade()
@@ -40,8 +40,13 @@ namespace SortingStation
                 cabWorldQuality = CabWorldQuality.Balanced;
                 preferencesVersion = 4;
             }
+            if (preferencesVersion < 5)
+            {
+                cabWorldMode = CabWorldMode.Immersive3D;
+                preferencesVersion = 5;
+            }
             if (!System.Enum.IsDefined(typeof(SeasonMode), seasonMode)) seasonMode = SeasonMode.Auto;
-            if (!System.Enum.IsDefined(typeof(CabWorldMode), cabWorldMode)) cabWorldMode = CabWorldMode.Hybrid3D;
+            if (!System.Enum.IsDefined(typeof(CabWorldMode), cabWorldMode)) cabWorldMode = CabWorldMode.Immersive3D;
             if (!System.Enum.IsDefined(typeof(CabWorldQuality), cabWorldQuality)) cabWorldQuality = CabWorldQuality.Balanced;
         }
 

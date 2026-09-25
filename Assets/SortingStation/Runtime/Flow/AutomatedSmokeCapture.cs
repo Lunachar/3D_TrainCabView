@@ -237,6 +237,19 @@ namespace SortingStation
                 cameraObject.tag = "MainCamera";
             }
 
+            if (camera.GetComponent<CabLookAround>() != null)
+            {
+                // Immersive cab: the driver's camera and the overlay HUD already make the final
+                // image, so capture exactly what is on screen.
+                yield return null;
+                yield return new WaitForEndOfFrame();
+                Texture2D frame = ScreenCapture.CaptureScreenshotAsTexture();
+                File.WriteAllBytes(path, frame.EncodeToPNG());
+                Destroy(frame);
+                yield return null;
+                yield break;
+            }
+
             Canvas[] canvases = FindObjectsOfType<Canvas>();
             RenderMode[] originalModes = canvases.Select(canvas => canvas.renderMode).ToArray();
             Camera[] originalCameras = canvases.Select(canvas => canvas.worldCamera).ToArray();

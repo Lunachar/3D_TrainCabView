@@ -128,10 +128,10 @@ namespace SortingStation.Tests
                 routePromptsEnabled = false
             };
             preferences.Upgrade();
-            Assert.That(preferences.preferencesVersion, Is.EqualTo(4));
+            Assert.That(preferences.preferencesVersion, Is.EqualTo(5));
             Assert.That(preferences.seasonMode, Is.EqualTo(SeasonMode.Auto));
             Assert.That(preferences.routePromptsEnabled, Is.True);
-            Assert.That(preferences.cabWorldMode, Is.EqualTo(CabWorldMode.Hybrid3D));
+            Assert.That(preferences.cabWorldMode, Is.EqualTo(CabWorldMode.Immersive3D));
             Assert.That(preferences.cabWorldQuality, Is.EqualTo(CabWorldQuality.Balanced));
         }
 

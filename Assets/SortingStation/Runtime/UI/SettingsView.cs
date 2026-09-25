@@ -40,14 +40,13 @@ namespace SortingStation
             worldMode = UiFactory.Button("CabWorldMode", card, focusGroup, WorldModeLabel(), theme.PanelAltColor,
                 theme.SelectedColor, () =>
                 {
-                    services.Preferences.cabWorldMode = services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D
-                        ? CabWorldMode.Legacy2D : CabWorldMode.Hybrid3D;
+                    services.Preferences.cabWorldMode = NextWorldMode(services.Preferences.cabWorldMode);
                     worldMode.SetLabel(WorldModeLabel());
-                    worldMode.SetSelected(services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D);
+                    worldMode.SetSelected(services.Preferences.cabWorldMode != CabWorldMode.Legacy2D);
                     services.SavePreferences();
                 }, 25);
             UiFactory.SetRect(worldMode.RectTransform, new Vector2(0.04f, 0.755f), new Vector2(0.49f, 0.855f), Vector2.zero, Vector2.zero);
-            worldMode.SetSelected(services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D);
+            worldMode.SetSelected(services.Preferences.cabWorldMode != CabWorldMode.Legacy2D);
 
             AccessibleButton worldQuality = null;
             worldQuality = UiFactory.Button("CabWorldQuality", card, focusGroup, WorldQualityLabel(), theme.PanelAltColor,
@@ -171,8 +170,20 @@ namespace SortingStation
         private string RoutePromptsLabel() => services.Preferences.routePromptsEnabled ? "Подсказки в поездке: да" : "Подсказки в поездке: нет";
         private string InteractionsLabel() => services.Preferences.gentleInteractionsEnabled ? "Реакции мира: да" : "Реакции мира: нет";
         private string HintsLabel() => services.Preferences.gentleHintsEnabled ? "Значки-подсказки: да" : "Значки-подсказки: нет";
-        private string WorldModeLabel() => services.Preferences.cabWorldMode == CabWorldMode.Hybrid3D
-            ? "Мир за окном: 3D" : "Мир за окном: 2.5D";
+        private string WorldModeLabel() => services.Preferences.cabWorldMode switch
+        {
+            CabWorldMode.Immersive3D => "Кабина и мир: 3D",
+            CabWorldMode.Hybrid3D => "Мир за окном: 3D, кабина: фото",
+            _ => "Мир за окном: 2.5D"
+        };
+
+        /// <summary>Full 3D → photo cab with a 3D world → 2.5D → full 3D.</summary>
+        public static CabWorldMode NextWorldMode(CabWorldMode mode) => mode switch
+        {
+            CabWorldMode.Immersive3D => CabWorldMode.Hybrid3D,
+            CabWorldMode.Hybrid3D => CabWorldMode.Legacy2D,
+            _ => CabWorldMode.Immersive3D
+        };
         private string WorldQualityLabel() => services.Preferences.cabWorldQuality == CabWorldQuality.Performance
             ? "3D: быстрее" : "3D: качество";
 

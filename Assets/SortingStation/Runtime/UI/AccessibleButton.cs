@@ -13,6 +13,7 @@ namespace SortingStation
         private Image background;
         private Graphic stateGraphic;
         private Outline focusOutline;
+        private Image focusFrame;
         private TMP_Text label;
         private AccessibleFocusGroup group;
         private Action activated;
@@ -91,6 +92,7 @@ namespace SortingStation
         {
             focused = value;
             if (focusOutline != null) focusOutline.enabled = value;
+            if (focusFrame != null) focusFrame.gameObject.SetActive(value);
             RefreshVisual();
         }
 
@@ -105,6 +107,38 @@ namespace SortingStation
             latchSelectedTransform = latchWhenSelected;
             selectedOffset = Mathf.Clamp(downwardOffset, 0f, 10f);
             restingAnchoredPosition = RectTransform.anchoredPosition;
+            RefreshTransform();
+        }
+
+        /// <summary>
+        /// Shows keyboard focus as a hollow frame. Needed for see-through buttons (e.g. laid over
+        /// a 3D prop): an Outline effect copies the whole transparent rectangle and fills it.
+        /// </summary>
+        public void UseFocusFrame()
+        {
+            if (focusFrame != null) return;
+            Color color = focusOutline != null ? focusOutline.effectColor : Color.yellow;
+            if (focusOutline != null) focusOutline.enabled = false;
+            focusOutline = null;
+            GameObject frameObject = new GameObject("FocusFrame", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            frameObject.transform.SetParent(transform, false);
+            focusFrame = frameObject.GetComponent<Image>();
+            focusFrame.sprite = UiFactory.FrameSprite();
+            focusFrame.type = Image.Type.Sliced;
+            focusFrame.color = color;
+            focusFrame.raycastTarget = false;
+            RectTransform rect = focusFrame.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(-6f, -6f);
+            rect.offsetMax = new Vector2(6f, 6f);
+            frameObject.SetActive(focused);
+        }
+
+        /// <summary>Moves the button's resting place, e.g. when it follows a 3D prop on screen.</summary>
+        public void SetRestingAnchoredPosition(Vector2 value)
+        {
+            restingAnchoredPosition = value;
             RefreshTransform();
         }
 
