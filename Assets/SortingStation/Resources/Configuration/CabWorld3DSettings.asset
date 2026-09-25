@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea7c3e1039ff7fb4dbafb25bfbb7216c, type: 3}
+  m_Name: CabWorld3DSettings
+  m_EditorClassIdentifier: 
+  prototypeRoutePrefab: {fileID: 8053019197673458400, guid: 9aeee18927d1d8d49970f0ca2fd2ea7d, type: 3}
+  performanceWidth: 960
+  performanceHeight: 384
+  balancedWidth: 1280
+  balancedHeight: 512
+  cameraFieldOfView: 61
+  farClip: 240
+  performanceShadowDistance: 24
+  balancedShadowDistance: 46
+  performanceSceneryDensity: 0.58
+  balancedSceneryDensity: 1
+  clearSky: {r: 0.5, g: 0.75, b: 0.91, a: 1}
+  sunlight: {r: 1, g: 0.93, b: 0.78, a: 1}
+  sunlightIntensity: 0.86
+  cockpitPhotoOverlayOpacity: 0.12
+  cockpitPerformanceWidth: 720
+  cockpitPerformanceHeight: 480
+  cockpitBalancedWidth: 960
+  cockpitBalancedHeight: 640
+  cockpitCameraFieldOfView: 50
+  cockpitCabinLightIntensity: 1.05
+  cockpitAccessibleOverlayOpacity: 0.24
+  cockpitHybridScale: 0.68
+  cockpitHybridVerticalOffset: -2
+  showCockpitWindowShellInHybrid: 0

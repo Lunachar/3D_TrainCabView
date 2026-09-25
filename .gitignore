@@ -1,0 +1,17 @@
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/.vs/
+/.idea/
+/*.csproj
+/*.sln
+/Builds/
+/Backups/
+/.repowise/
+/.claude/
+/.vscode/
+/.mcp.json
+*.user
+*.suo
