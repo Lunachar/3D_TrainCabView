@@ -106,6 +106,20 @@ namespace SortingStation.EditorTools
             SetBool(serialized, "m_SoftShadowsSupported", false);
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(asset);
+
+            // Forward+: lights are picked per screen tile instead of per object, so the long
+            // track and terrain meshes are not limited to a handful of the route's many lamps
+            // and the headlights always reach them.
+            SerializedProperty renderers = serialized.FindProperty("m_RendererDataList");
+            for (int i = 0; renderers != null && i < renderers.arraySize; i++)
+            {
+                UnityEngine.Object data = renderers.GetArrayElementAtIndex(i).objectReferenceValue;
+                if (data == null) continue;
+                SerializedObject rendererData = new SerializedObject(data);
+                SetInt(rendererData, "m_RenderingMode", 2);
+                rendererData.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(data);
+            }
         }
 
         private static void AssignQualityLevels(RenderPipelineAsset performance, RenderPipelineAsset balanced)

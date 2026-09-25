@@ -93,6 +93,7 @@ namespace SortingStation
         public WeatherType Weather => weather != null ? weather.Current : WeatherType.Clear;
         public DayPhase DayPhase => clock != null ? clock.Phase : DayPhase.Day;
         public float DayTime01 => clock != null ? clock.Time01 : 0.3f;
+        public void FreezeDayTime(float time01) => clock?.Freeze(time01);
         public float Night01 => clock != null ? clock.Night01 : 0f;
         public RouteEventDefinition ActiveEvent => activeEvent;
 

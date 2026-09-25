@@ -15,10 +15,11 @@ namespace SortingStation
         private static readonly Color StormHorizon = new Color(0.50f, 0.54f, 0.58f);
         private static readonly Color TunnelDark = new Color(0.035f, 0.035f, 0.040f);
         private static readonly Color DayAmbient = new Color(0.50f, 0.54f, 0.58f);
-        private static readonly Color NightAmbient = new Color(0.055f, 0.065f, 0.10f);
+        private static readonly Color NightAmbient = new Color(0.030f, 0.036f, 0.060f);
 
         private readonly Material skybox;
         private readonly float farClip;
+        private float environmentKey = -1f;
 
         public Material Skybox => skybox;
         public Color HorizonColor { get; private set; } = DayHorizon;
@@ -53,7 +54,10 @@ namespace SortingStation
 
             float exposure = Mathf.Lerp(0.06f, 1.25f, day) * (badWeather ? 0.62f : 1f) * (1f - tunnelBlend);
             skybox.SetFloat("_Exposure", exposure);
-            skybox.SetFloat("_AtmosphereThickness", badWeather ? 2.4f : Mathf.Lerp(1.7f, 1.0f, sunArc));
+            // Overcast: a thin, grey atmosphere (a thick one turns the gamma-space sky orange).
+            skybox.SetFloat("_AtmosphereThickness", badWeather ? 0.55f : Mathf.Lerp(1.7f, 1.0f, sunArc));
+            skybox.SetColor("_SkyTint", badWeather ? new Color(0.42f, 0.44f, 0.46f) : new Color(0.52f, 0.54f, 0.56f));
+            skybox.SetFloat("_SunDisk", badWeather ? 0f : 2f);
             skybox.SetColor("_GroundColor", horizon);
 
             // Bad-weather fog stays a little darker than the sky, so snow on the ground and the
@@ -63,7 +67,21 @@ namespace SortingStation
             RenderSettings.fogEndDistance = badWeather ? farClip * 0.8f : farClip * 0.94f;
 
             Color ambient = Color.Lerp(NightAmbient, DayAmbient, day) * (badWeather ? 0.82f : 1f);
-            RenderSettings.ambientLight = Color.Lerp(ambient, TunnelDark * 2.2f, tunnelBlend);
+            Color finalAmbient = Color.Lerp(ambient, TunnelDark * 1.2f, tunnelBlend);
+            RenderSettings.ambientLight = finalAmbient;
+            // URP lights with the ambient probe and reflects the default reflection cubemap; both
+            // are captured once at load (in daylight), so refresh them as the light changes or
+            // night-time ground would still shine with the day sky.
+            UnityEngine.Rendering.SphericalHarmonicsL2 probe = default;
+            probe.AddAmbientLight(finalAmbient);
+            RenderSettings.ambientProbe = probe;
+            RenderSettings.reflectionIntensity = Mathf.Lerp(0.08f, 1f, day) * (badWeather ? 0.7f : 1f) * (1f - tunnelBlend * 0.92f);
+            float key = Mathf.Round(day * 10f) + (badWeather ? 20f : 0f) + Mathf.Round(tunnelBlend * 2f) * 40f;
+            if (!Mathf.Approximately(key, environmentKey) && Application.isPlaying)
+            {
+                environmentKey = key;
+                DynamicGI.UpdateEnvironment();
+            }
         }
 
         public void Dispose()

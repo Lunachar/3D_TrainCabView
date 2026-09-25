@@ -138,23 +138,55 @@ namespace SortingStation
             yield return new WaitForSecondsRealtime(1.5f);
             CabRideController cab = FindObjectOfType<CabRideController>();
             const float cycle = 1170f;
-            (string file, float distance, bool lights)[] shots =
+            const float noon = 0.5f;
+            const float midnight = 0.95f;
+            (string file, float distance, bool lights, float time)[] shots =
             {
-                ("01-station-approach.png", cycle * CabRouteLayout.FirstStation01 - 40f, false),
-                ("02-station-stop.png", cycle * CabRouteLayout.FirstStation01 + 23f, false),
-                ("03-tunnel-middle.png", cycle * 0.63f, true),
-                ("04-tunnel-exit.png", cycle * 0.70f, true),
-                ("05-loop-end.png", cycle - 25f, false)
+                ("01-station-approach.png", cycle * CabRouteLayout.FirstStation01 - 40f, false, noon),
+                ("02-station-stop.png", cycle * CabRouteLayout.FirstStation01 + 23f, false, noon),
+                ("03-tunnel-middle.png", cycle * 0.63f, true, noon),
+                ("04-tunnel-exit.png", cycle * 0.70f, true, noon),
+                ("05-loop-end.png", cycle - 25f, false, noon),
+                ("06-night-lights-off.png", cycle * 0.18f, false, midnight),
+                ("07-night-lights-on.png", cycle * 0.18f, true, midnight)
             };
-            foreach ((string file, float distance, bool lights) in shots)
+            foreach ((string file, float distance, bool lights, float time) in shots)
             {
-                if (cab != null) cab.ConfigureDistancePreview(distance, lights);
+                if (cab != null) cab.ConfigureDistancePreview(distance, lights, time);
                 yield return new WaitForSecondsRealtime(0.8f);
                 yield return Capture(file, 1600, 1000);
+                Debug.Log("SMOKE_LIGHT " + file + " ambient=" + RenderSettings.ambientLight + " fog=" + RenderSettings.fogColor +
+                          " sun=" + (RenderSettings.sun != null ? RenderSettings.sun.intensity + "@" + RenderSettings.sun.transform.forward : "none") +
+                          " sky=" + (RenderSettings.skybox != null ? RenderSettings.skybox.GetFloat("_Exposure").ToString() : "none"));
             }
+            Debug.Log("HEADLIGHT_RATIO=" + LowerCentreBrightnessRatio(
+                Path.Combine(outputDirectory, "07-night-lights-on.png"), Path.Combine(outputDirectory, "06-night-lights-off.png")));
             Debug.Log("ROUTE_PREVIEW_COMPLETE=" + outputDirectory);
             yield return new WaitForSecondsRealtime(0.2f);
             Application.Quit();
+        }
+
+        /// <summary>How much brighter the track area ahead is in the first image than in the second.</summary>
+        private static float LowerCentreBrightnessRatio(string litPath, string darkPath)
+        {
+            float Mean(string path)
+            {
+                Texture2D image = new Texture2D(2, 2);
+                image.LoadImage(File.ReadAllBytes(path));
+                float sum = 0f;
+                int count = 0;
+                // Texture rows count from the bottom: this is the strip of ground just above the desk.
+                for (int y = (int)(image.height * 0.515f); y < image.height * 0.57f; y += 2)
+                    for (int x = (int)(image.width * 0.40f); x < image.width * 0.60f; x += 2)
+                    {
+                        Color c = image.GetPixel(x, y);
+                        sum += c.r * 0.3f + c.g * 0.59f + c.b * 0.11f;
+                        count++;
+                    }
+                Destroy(image);
+                return count > 0 ? sum / count : 0f;
+            }
+            return Mean(litPath) / Mathf.Max(0.001f, Mean(darkPath));
         }
 
         private IEnumerator CaptureTrackPreview()

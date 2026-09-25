@@ -250,8 +250,9 @@ namespace SortingStation
         }
 
         /// <summary>Smoke-capture hook: stand still at a route distance, optionally with headlights on.</summary>
-        public void ConfigureDistancePreview(float distance, bool headlightsOn)
+        public void ConfigureDistancePreview(float distance, bool headlightsOn, float dayTime01 = -1f)
         {
+            if (dayTime01 >= 0f) journey?.FreezeDayTime(dayTime01);
             departureAuthorized = true;
             vigilanceAlarm = false;
             automaticStop = false;

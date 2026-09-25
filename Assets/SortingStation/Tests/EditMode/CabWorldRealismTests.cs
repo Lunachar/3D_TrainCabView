@@ -242,6 +242,35 @@ namespace SortingStation.Tests
             }
         }
 
+        [Test]
+        public void HeadlightsLightTheTrackFarAhead()
+        {
+            GameObject root = new GameObject("Root");
+            try
+            {
+                CabHeadlights lights = new CabHeadlights(root.transform, 3f);
+                lights.SetOn(true);
+                Assert.That(lights.Far.enabled && lights.Flood.enabled, Is.True);
+                Assert.That(lights.Far.renderMode, Is.EqualTo(LightRenderMode.ForcePixel));
+                foreach (float ahead in new[] { 15f, 30f, 45f })
+                {
+                    Vector3 ground = new Vector3(0f, 0f, 3f + ahead);
+                    Vector3 toGround = ground - lights.Far.transform.position;
+                    float offAxis = Vector3.Angle(lights.Far.transform.forward, toGround);
+                    Assert.That(offAxis, Is.LessThan(lights.Far.spotAngle * 0.5f), "inside the beam at " + ahead);
+                    float nDotL = Vector3.Dot(Vector3.up, -toGround.normalized);
+                    float lit = lights.Far.intensity / toGround.sqrMagnitude * nDotL;
+                    Assert.That(lit, Is.GreaterThan(ahead > 40f ? 0.04f : 0.08f), "ground visibly lit at " + ahead + " m");
+                }
+                lights.SetOn(false);
+                Assert.That(lights.Far.enabled, Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
         private static Transform FindByPrefix(Transform parent, string prefix)
         {
             foreach (Transform child in parent)

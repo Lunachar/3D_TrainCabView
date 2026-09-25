@@ -31,6 +31,7 @@ namespace SortingStation
         private const float NoseLampAhead = 3f;
         private Light sun;
         private Light headlight;
+        private CabHeadlights headlights3D;
         private Transform nativeSkyRoot;
         private Transform nativeSunDisc;
         private Transform nativeMoonDisc;
@@ -225,6 +226,7 @@ namespace SortingStation
         public void SetHeadlights(bool enabled)
         {
             if (headlight != null) headlight.enabled = enabled;
+            headlights3D?.SetOn(enabled);
             authoring?.SetHeadlights(enabled);
         }
         public void SetWeather(WeatherType weather) => nativeWeather = weather;
@@ -341,20 +343,15 @@ namespace SortingStation
             headlight.range = 34f;
             headlight.spotAngle = 28f;
             headlight.shadows = LightShadows.None;
+            headlight.enabled = false;
             if (immersive)
             {
-                // Low on the locomotive nose, strong and wide enough to light the track and the
-                // tunnel walls ahead; always per-pixel so the light limit never drops it.
-                headlightObject.transform.localPosition = new Vector3(0f, 1.35f, NoseLampAhead);
-                headlightObject.transform.localRotation = Quaternion.Euler(3.5f, 0f, 0f);
-                headlight.color = new Color(1f, 0.93f, 0.80f);
-                headlight.intensity = 6f;
-                headlight.range = 85f;
-                headlight.spotAngle = 52f;
-                headlight.innerSpotAngle = 24f;
-                headlight.renderMode = LightRenderMode.ForcePixel;
+                // Immersive mode uses a real long-range beam plus a flood on the cab roof line.
+                if (Application.isPlaying) UnityEngine.Object.Destroy(headlightObject);
+                else UnityEngine.Object.DestroyImmediate(headlightObject);
+                headlight = null;
+                headlights3D = new CabHeadlights(SceneRoot, NoseLampAhead);
             }
-            headlight.enabled = false;
             BuildNativeSky(immersive ? driverRig : cameraObject.transform);
         }
 
@@ -564,8 +561,14 @@ namespace SortingStation
             }
             if (sun != null)
             {
-                sun.transform.rotation = Quaternion.Euler(18f + arc * 50f, Mathf.Lerp(-68f, 62f, sunTravel), 0f);
-                sun.intensity = Mathf.Lerp(0.38f, settings != null ? settings.SunlightIntensity : 0.86f, arc) * (badWeather ? 0.44f : 1f) * Mathf.Lerp(1f, 0.2f, TunnelBlend);
+                float daylight = 1f - nightAmount;
+                // After dusk the sun sinks below the horizon, so the procedural sky goes dark
+                // instead of keeping a sunset glow all night.
+                sun.transform.rotation = Quaternion.Euler(Mathf.Lerp(-10f, 18f + arc * 50f, daylight), Mathf.Lerp(-68f, 62f, sunTravel), 0f);
+                // At night only faint blue moonlight remains, so the headlights and lamps show.
+                float dayIntensity = Mathf.Lerp(0.38f, settings != null ? settings.SunlightIntensity : 0.86f, arc);
+                sun.intensity = Mathf.Lerp(0.05f, dayIntensity, daylight) * (badWeather ? 0.44f : 1f) * Mathf.Lerp(1f, 0.2f, TunnelBlend);
+                sun.color = Color.Lerp(new Color(0.55f, 0.65f, 0.95f), settings != null ? settings.Sunlight : new Color(1f, 0.93f, 0.78f), daylight);
             }
             if (nativeClouds != null)
                 for (int i = 0; i < nativeClouds.Length; i++)
@@ -604,6 +607,7 @@ namespace SortingStation
             // for Redmi Pad 2's performance profile.
             authoring?.SetScenicNightLighting(arc < 0.42f || badWeather || TunnelBlend > 0.18f);
             atmosphereSky?.Update(arc, nightAmount, badWeather, TunnelBlend);
+            headlights3D?.UpdateHaze(nightAmount, TunnelBlend, badWeather);
         }
 
         private void UpdateSunGlow(Renderer glow, Vector3 position, float glowAmount, bool badWeather, bool isInsideTunnel)

@@ -13,8 +13,18 @@ namespace SortingStation
             Time01 = value != null ? value.StartTime01 : 0.30f;
         }
 
+        /// <summary>Smoke-capture hook: jump to a time of day and stop the clock there.</summary>
+        public void Freeze(float time01)
+        {
+            Time01 = Mathf.Repeat(time01, 1f);
+            frozen = true;
+        }
+
+        private bool frozen;
+
         public void Step(float unscaledDeltaTime)
         {
+            if (frozen) return;
             float duration = catalog != null ? catalog.DayCycleSeconds : 720f;
             Time01 = Mathf.Repeat(Time01 + Mathf.Max(0f, unscaledDeltaTime) / duration, 1f);
         }
