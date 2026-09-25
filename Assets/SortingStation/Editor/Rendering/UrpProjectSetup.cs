@@ -55,7 +55,9 @@ namespace SortingStation.EditorTools
                 RequireShader("SortingStation/UI/RainWiper"),
                 RequireShader("SortingStation/UI/MountainFeather"),
                 RequireShader("Skybox/Procedural"),
-                RequireShader("SortingStation/WorldText"));
+                RequireShader("SortingStation/WorldText"),
+                RequireShader("SortingStation/TerrainBlend"),
+                RequireShader("SortingStation/ImpostorBake"));
             EditorUtility.SetDirty(settings);
 
             string conversion = ConvertStandardMaterials();

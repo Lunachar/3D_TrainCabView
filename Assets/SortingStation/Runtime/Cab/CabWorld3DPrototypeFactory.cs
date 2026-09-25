@@ -455,7 +455,7 @@ namespace SortingStation
             board.localScale = new Vector3(Mathf.Max(1.5f, size.x + 0.7f), Mathf.Max(0.9f, size.y + 0.35f), 0.08f);
         }
 
-        private static TextMesh CreateStationSignText(Transform root, string name, Vector3 position, Quaternion rotation, string stationName)
+        internal static TextMesh CreateStationSignText(Transform root, string name, Vector3 position, Quaternion rotation, string stationName)
         {
             GameObject label = new GameObject(name, typeof(TextMesh));
             label.transform.SetParent(root, false);
@@ -1107,7 +1107,7 @@ namespace SortingStation
             }
         }
 
-        private static GameObject CreatePassenger(Transform root, string name, Vector3 position, Color coatColor,
+        internal static GameObject CreatePassenger(Transform root, string name, Vector3 position, Color coatColor,
             bool child, bool seated, bool withUmbrella, out GameObject umbrella, out Renderer coatRenderer, out Transform[] limbs)
         {
             GameObject actor = new GameObject(name);

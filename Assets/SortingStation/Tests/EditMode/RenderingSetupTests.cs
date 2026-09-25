@@ -46,6 +46,9 @@ namespace SortingStation.Tests
             Assert.That(settings.MountainFeatherShader, Is.Not.Null);
             Assert.That(settings.SkyboxShader, Is.Not.Null);
             Assert.That(settings.WorldTextShader, Is.Not.Null);
+            Assert.That(settings.TerrainShader, Is.Not.Null);
+            Assert.That(settings.ImpostorBakeShader, Is.Not.Null);
+            Assert.That(settings.TerrainShader.name, Is.EqualTo("SortingStation/TerrainBlend"));
         }
 
         [Test]

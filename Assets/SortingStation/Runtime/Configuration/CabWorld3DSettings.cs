@@ -25,6 +25,8 @@ namespace SortingStation
         [SerializeField] private Shader mountainFeatherShader;
         [SerializeField] private Shader skyboxShader;
         [SerializeField] private Shader worldTextShader;
+        [SerializeField] private Shader terrainShader;
+        [SerializeField] private Shader impostorBakeShader;
 
         [Header("Render texture")]
         [SerializeField] [Min(640)] private int performanceWidth = 960;
@@ -76,6 +78,8 @@ namespace SortingStation
         public Shader MountainFeatherShader => mountainFeatherShader;
         public Shader SkyboxShader => skyboxShader;
         public Shader WorldTextShader => worldTextShader;
+        public Shader TerrainShader => terrainShader;
+        public Shader ImpostorBakeShader => impostorBakeShader;
         public int RenderWidth(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performanceWidth : balancedWidth;
         public int RenderHeight(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performanceHeight : balancedHeight;
         public float CameraFieldOfView => cameraFieldOfView;
@@ -100,7 +104,7 @@ namespace SortingStation
 
         public void ConfigureRendering(RenderPipelineAsset performance, RenderPipelineAsset balanced,
             Shader lit, Shader unlitTexture, Shader unlitTransparent, Shader sprite, Shader additive,
-            Shader rainWiper, Shader mountainFeather, Shader skybox, Shader worldText)
+            Shader rainWiper, Shader mountainFeather, Shader skybox, Shader worldText, Shader terrain, Shader impostorBake)
         {
             performancePipeline = performance;
             balancedPipeline = balanced;
@@ -113,6 +117,8 @@ namespace SortingStation
             mountainFeatherShader = mountainFeather;
             skyboxShader = skybox;
             worldTextShader = worldText;
+            terrainShader = terrain;
+            impostorBakeShader = impostorBake;
         }
 #endif
     }

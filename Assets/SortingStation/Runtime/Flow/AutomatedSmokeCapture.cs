@@ -137,30 +137,74 @@ namespace SortingStation
             yield return WaitForScene(SceneNames.CabRide);
             yield return new WaitForSecondsRealtime(1.5f);
             CabRideController cab = FindObjectOfType<CabRideController>();
-            const float cycle = 1170f;
+            CabWorld3DRenderer view = FindObjectOfType<CabWorld3DRenderer>();
+            WorldPlanner planner = view != null && view.Streamed != null ? view.Streamed.Planner : null;
+            if (planner == null)
+            {
+                Debug.LogError("ROUTE_PREVIEW: no streamed world");
+                Application.Quit();
+                yield break;
+            }
+            float Find(Func<WorldChunkPlan, bool> match, float offset)
+            {
+                for (int i = 2; i < 800; i++)
+                {
+                    WorldChunkPlan plan = planner.Get(i);
+                    if (match(plan)) return plan.Start + offset;
+                }
+                return 60f;
+            }
+            TreeImpostors.SaveAtlas(Path.Combine(outputDirectory, "00-tree-atlas.png"));
+            float stop = planner.NextStopAfter(0f, out _);
+            float tunnel = Find(p => p.TunnelEntrance, WorldPlanner.PortalInset);
             const float noon = 0.5f;
             const float midnight = 0.95f;
             (string file, float distance, bool lights, float time)[] shots =
             {
-                ("01-station-approach.png", cycle * CabRouteLayout.FirstStation01 - 40f, false, noon),
-                ("02-station-stop.png", cycle * CabRouteLayout.FirstStation01 + 23f, false, noon),
-                ("03-tunnel-middle.png", cycle * 0.63f, true, noon),
-                ("04-tunnel-exit.png", cycle * 0.70f, true, noon),
-                ("05-loop-end.png", cycle - 25f, false, noon),
-                ("06-night-lights-off.png", cycle * 0.18f, false, midnight),
-                ("07-night-lights-on.png", cycle * 0.18f, true, midnight)
+                ("01-start.png", 25f, false, noon),
+                ("02-station-approach.png", stop - 75f, false, noon),
+                ("03-station-stop.png", stop, false, noon),
+                ("04-into-forest.png", Find(p => p.Kind == WorldChunkKind.Forest, -20f), false, noon),
+                ("05-tunnel-approach.png", tunnel - 70f, false, noon),
+                ("06-tunnel-inside.png", tunnel + 70f, true, noon),
+                ("07-river-bridge.png", Find(p => p.Kind == WorldChunkKind.Water, 15f), false, noon),
+                ("08-town.png", Find(p => p.Kind == WorldChunkKind.Town, 15f), false, noon),
+                ("09-town-night.png", Find(p => p.Kind == WorldChunkKind.Town, 15f), true, midnight),
+                ("10-station-night.png", stop - 60f, true, midnight),
+                ("11-field.png", Find(p => p.Kind == WorldChunkKind.Field, 30f), false, noon),
+                ("12-night-lights-off.png", Find(p => p.Kind == WorldChunkKind.Field, 30f), false, midnight),
+                ("13-night-lights-on.png", Find(p => p.Kind == WorldChunkKind.Field, 30f), true, midnight)
             };
             foreach ((string file, float distance, bool lights, float time) in shots)
             {
                 if (cab != null) cab.ConfigureDistancePreview(distance, lights, time);
                 yield return new WaitForSecondsRealtime(0.8f);
                 yield return Capture(file, 1600, 1000);
-                Debug.Log("SMOKE_LIGHT " + file + " ambient=" + RenderSettings.ambientLight + " fog=" + RenderSettings.fogColor +
-                          " sun=" + (RenderSettings.sun != null ? RenderSettings.sun.intensity + "@" + RenderSettings.sun.transform.forward : "none") +
-                          " sky=" + (RenderSettings.skybox != null ? RenderSettings.skybox.GetFloat("_Exposure").ToString() : "none"));
+                Debug.Log("SMOKE_SHOT " + file + " d=" + distance.ToString("0") + " kind=" + planner.At(distance).Kind +
+                          " chunks=" + view.Streamed.LoadedChunkCount + " lights=" + view.Streamed.EnabledLightCount);
             }
             Debug.Log("HEADLIGHT_RATIO=" + LowerCentreBrightnessRatio(
-                Path.Combine(outputDirectory, "07-night-lights-on.png"), Path.Combine(outputDirectory, "06-night-lights-off.png")));
+                Path.Combine(outputDirectory, "13-night-lights-on.png"), Path.Combine(outputDirectory, "12-night-lights-off.png")));
+
+            // Long run: 30 km in 60 m steps, building every chunk on the way.
+            float soakStart = Time.realtimeSinceStartup;
+            long memoryBefore = GC.GetTotalMemory(true);
+            int maxChunks = 0;
+            for (float d = 0f; d < 30000f; d += 60f)
+            {
+                view.SetPreviewDistance(d);
+                maxChunks = Mathf.Max(maxChunks, view.Streamed.LoadedChunkCount);
+                if (Mathf.Repeat(d, 3000f) < 1f) yield return null;
+            }
+            yield return null;
+            Resources.UnloadUnusedAssets();
+            long memoryAfter = GC.GetTotalMemory(true);
+            float seconds = Time.realtimeSinceStartup - soakStart;
+            Debug.Log("SOAK km=30 seconds=" + seconds.ToString("0.0") + " msPerChunk=" + (seconds * 1000f / 250f).ToString("0.0") +
+                      " maxChunks=" + maxChunks + " managedMB=" + (memoryBefore / 1048576f).ToString("0.0") + "->" + (memoryAfter / 1048576f).ToString("0.0"));
+            if (cab != null) cab.ConfigureDistancePreview(30000f, false, noon);
+            yield return new WaitForSecondsRealtime(0.8f);
+            yield return Capture("14-after-30km.png", 1600, 1000);
             Debug.Log("ROUTE_PREVIEW_COMPLETE=" + outputDirectory);
             yield return new WaitForSecondsRealtime(0.2f);
             Application.Quit();

@@ -220,7 +220,7 @@ namespace SortingStation
             renderer.receiveShadows = source.receiveShadows;
         }
 
-        private static Material GrassMaterial(SeasonType season)
+        internal static Material GrassMaterial(SeasonType season)
         {
             Color tint = season == SeasonType.Autumn ? new Color(1.2f, 0.95f, 0.55f)
                 : season == SeasonType.Spring ? new Color(0.9f, 1.1f, 0.8f) : new Color(0.85f, 1f, 0.78f);

@@ -557,6 +557,9 @@ namespace SortingStation
             int seed = services.CabRide.RouteSeed + services.Session.ReplaySeed * 7919;
             stationStop = stage.gameObject.AddComponent<CabStationStopDirector>();
             stationStop.Initialize(services.CabInteractions, seed);
+            if (world is CabWorld3DRenderer streamedView && streamedView.Streamed != null)
+                stationStop.UseRouteStops((float distance, out CabStationDefinition station) =>
+                    streamedView.Streamed.NextStopAfter(distance, out station));
             stationStop.PhaseChanged += OnStationPhaseChanged;
             stationStop.StationApproaching += OnStationApproaching;
             passengers = new CabPassengerService(seed, 76);

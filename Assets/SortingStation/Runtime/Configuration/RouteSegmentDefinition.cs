@@ -30,7 +30,6 @@ namespace SortingStation
         public bool Rare => rare;
         public TrackFeature Feature => trackFeature;
 
-#if UNITY_EDITOR
         public void Configure(string title, RouteSegmentType segmentType, float segmentLength, float selectionWeight,
             int gap, float density, Color tint, bool hasSideRoad, bool isRare,
             TrackFeature feature = TrackFeature.None)
@@ -46,6 +45,5 @@ namespace SortingStation
             rare = isRare;
             trackFeature = feature;
         }
-#endif
     }
 }

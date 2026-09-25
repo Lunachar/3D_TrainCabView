@@ -20,6 +20,11 @@ namespace SortingStation
         private RouteSegmentType lastSegment;
         private bool stationTriggeredInSegment;
         private int stationSequence = 1;
+        private StopFinder stopFinder;
+        private CabStationDefinition upcomingStation;
+
+        /// <summary>Finds the next stopping point (route distance) at or after a distance, and its station.</summary>
+        public delegate float StopFinder(float distance, out CabStationDefinition station);
 
         public event Action<CabStationPhase> PhaseChanged;
         public event Action<CabStationDefinition> StationApproaching;
@@ -31,7 +36,10 @@ namespace SortingStation
         public CabStationDefinition CurrentStation { get; private set; }
         /// <summary>Station the train is heading for (the current one while stopping).</summary>
         public CabStationDefinition NextStation => model != null && model.IsActive && CurrentStation != null
-            ? CurrentStation : CabStationNetwork.AtSequence(stationSequence);
+            ? CurrentStation : stopFinder != null ? upcomingStation : CabStationNetwork.AtSequence(stationSequence);
+
+        /// <summary>An endless route knows where its stations are: stop there instead of on the loop layout.</summary>
+        public void UseRouteStops(StopFinder finder) => stopFinder = finder;
         /// <summary>Metres to the next stopping point, or a negative value when unknown.</summary>
         public float DistanceToNextStop { get; private set; } = -1f;
 
@@ -61,21 +69,25 @@ namespace SortingStation
                 lastSegment = segment;
                 stationTriggeredInSegment = false;
             }
-            float upcomingTarget = FindUpcomingStationTarget(routeDistance, routeCycleLength);
+            bool routeGeometry = stopFinder != null || routeCycleLength >= 100f;
+            float upcomingTarget = stopFinder != null
+                ? stopFinder(routeDistance, out upcomingStation)
+                : FindUpcomingStationTarget(routeDistance, routeCycleLength);
             float distanceAhead = activeStationTargetDistance >= 0f
                 ? Mathf.Max(0f, activeStationTargetDistance - routeDistance)
                 : Mathf.Max(0f, upcomingTarget - routeDistance);
-            DistanceToNextStop = routeCycleLength >= 100f && (activeStationTargetDistance >= 0f || upcomingTarget >= 0f) ? distanceAhead : -1f;
-            bool geometryTrigger = routeCycleLength >= 100f && upcomingTarget >= 0f &&
+            DistanceToNextStop = routeGeometry && (activeStationTargetDistance >= 0f || upcomingTarget >= 0f) ? distanceAhead : -1f;
+            bool geometryTrigger = routeGeometry && upcomingTarget >= 0f &&
                                    upcomingTarget - routeDistance <= (catalog != null ? catalog.StationApproachDistance : 92f) &&
                                    Mathf.Abs(upcomingTarget - lastTriggeredStationTargetDistance) > 0.1f;
-            bool positionTrigger = routeCycleLength < 100f && segmentProgress >= 0f && segmentProgress >= 0.46f && segmentProgress <= 0.78f &&
+            bool positionTrigger = !routeGeometry && segmentProgress >= 0f && segmentProgress >= 0.46f && segmentProgress <= 0.78f &&
                                    !stationTriggeredInSegment;
-            bool legacyTimeTrigger = segmentProgress < 0f && movingTime >= nextStationAt;
+            bool legacyTimeTrigger = !routeGeometry && segmentProgress < 0f && movingTime >= nextStationAt;
             if (!model.IsActive && model.Phase != CabStationPhase.Complete && model.Phase != CabStationPhase.Cancelled &&
                 ((geometryTrigger && !tunnel) || ((positionTrigger || legacyTimeTrigger) && suitable && !tunnel)) && !priorityStop)
             {
-                CurrentStation = CabStationNetwork.AtSequence(stationSequence++);
+                CurrentStation = stopFinder != null && geometryTrigger && upcomingStation != null
+                    ? upcomingStation : CabStationNetwork.AtSequence(stationSequence++);
                 model.BeginApproach();
                 stationTriggeredInSegment = true;
                 activeStationTargetDistance = geometryTrigger ? upcomingTarget : routeDistance;

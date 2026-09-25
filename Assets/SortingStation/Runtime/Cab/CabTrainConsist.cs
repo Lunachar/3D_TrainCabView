@@ -71,6 +71,23 @@ namespace SortingStation
             }
         }
 
+        /// <summary>Places every car along an open (non-looping) route given by <paramref name="point"/>.</summary>
+        public void UpdatePose(float routeDistance, System.Func<float, Vector3> point)
+        {
+            for (int i = 0; i < cars.Count; i++)
+            {
+                float d = routeDistance + carCentreOffsets[i];
+                float half = (i == 0 ? LocomotiveLength : CoachLength) * 0.42f;
+                Vector3 front = point(d + half);
+                // Before the route start the path simply continues straight back.
+                Vector3 back = point(d - half);
+                Transform car = cars[i];
+                car.localPosition = (front + back) * 0.5f;
+                Vector3 direction = front - back;
+                car.localRotation = direction.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(direction, Vector3.up) : Quaternion.identity;
+            }
+        }
+
         /// <summary>Track point kept on the same side of the loop seam as the train itself.</summary>
         private static Vector3 Unwrapped(float distance, float here, float cycle)
         {

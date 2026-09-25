@@ -32,6 +32,9 @@ namespace SortingStation
         private Light sun;
         private Light headlight;
         private CabHeadlights headlights3D;
+        // Immersive mode streams an endless world instead of the looped prototype route.
+        private CabStreamedWorld streamed;
+        private HorizonRing horizonRing;
         private Transform nativeSkyRoot;
         private Transform nativeSunDisc;
         private Transform nativeMoonDisc;
@@ -59,11 +62,12 @@ namespace SortingStation
         public event Action<RouteSegmentDefinition> SegmentChanged;
         public event Action<CabAmbientSoundRequest> AmbientSoundRequested;
         public float TunnelBlend { get; private set; }
-        public float Distance => journey != null ? journey.Distance : 0f;
-        public float CycleLength => journey != null ? journey.CycleLength : 0f;
-        public float SegmentProgress => journey != null ? journey.SegmentProgress : 0f;
-        public RouteSegmentDefinition CurrentSegment => journey != null ? journey.CurrentSegment : null;
-        public string CurrentSegmentName => CurrentSegment != null ? CurrentSegment.DisplayName : "3D-маршрут";
+        public float Distance => streamed != null ? streamed.Distance : journey != null ? journey.Distance : 0f;
+        public float CycleLength => streamed != null ? 0f : journey != null ? journey.CycleLength : 0f;
+        public float SegmentProgress => streamed != null ? streamed.SegmentProgress : journey != null ? journey.SegmentProgress : 0f;
+        public RouteSegmentDefinition CurrentSegment => streamed != null ? streamed.CurrentSegment : journey != null ? journey.CurrentSegment : null;
+        public string CurrentSegmentName => streamed != null ? streamed.CurrentSegmentName : CurrentSegment != null ? CurrentSegment.DisplayName : "3D-маршрут";
+        public CabStreamedWorld Streamed => streamed;
         public RectTransform Viewport => viewport;
         public Camera WorldCamera => worldCamera;
         public Transform DriverRig => driverRig;
@@ -105,8 +109,13 @@ namespace SortingStation
 
             sceneRoot = new GameObject("CabWorld3DScene").transform;
             BuildCameraAndLight();
-            BuildRoute();
-            ApplyRoutePose();
+            bool fast = preferences.cabWorldQuality == CabWorldQuality.Performance;
+            streamed = new CabStreamedWorld(SceneRoot, this, ride != null ? ride.RouteSeed : 1, fast ? 5 : 7, fast ? 4 : 6);
+            streamed.SegmentChanged += OnJourneySegmentChanged;
+            routeRoot = streamed.RouteRoot;
+            worldCamera.farClipPlane = streamed.ViewDistance + 60f;
+            horizonRing = new HorizonRing(SceneRoot, worldCamera.farClipPlane - 30f, ride != null ? ride.RouteSeed : 1);
+            streamed.Configure(SeasonType.Summer, settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f);
             // The procedural sky draws the sun itself; the old sphere and its glow shells go.
             if (nativeSunDisc != null) Destroy(nativeSunDisc.gameObject);
             if (nativeSunHalo != null) Destroy(nativeSunHalo.gameObject);
@@ -173,6 +182,13 @@ namespace SortingStation
 
         public void Advance(float speed01, float acceleration01, float unscaledDeltaTime)
         {
+            if (streamed != null && ride != null)
+            {
+                streamed.Advance(CabWorldRenderer.CalculateDistanceDelta(speed01, ride.WorldUnitsPerSecond, unscaledDeltaTime));
+                TunnelBlend = streamed.TunnelBlend;
+                UpdateNativeSky(unscaledDeltaTime);
+                return;
+            }
             if (journey == null || ride == null) return;
             float delta = CabWorldRenderer.CalculateDistanceDelta(speed01, ride.WorldUnitsPerSecond, unscaledDeltaTime);
             journey.Advance(delta);
@@ -196,6 +212,16 @@ namespace SortingStation
         {
             if (season == null) return;
             authoring?.ApplySeason(season.season);
+            if (streamed != null)
+            {
+                streamed.Configure(season.season, settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f);
+                if (consist == null)
+                {
+                    consist = new CabTrainConsist(streamed.RouteRoot);
+                    streamed.AttachConsist(consist);
+                }
+                return;
+            }
             if (!immersive) return;
             if (routeRoot.Find(CabWorldExtras.HillsName) == null) CabWorldExtras.BuildHills(routeRoot, journey.CycleLength);
             CabWorldPbrUpgrade.Apply(routeRoot, season.season);
@@ -233,18 +259,31 @@ namespace SortingStation
         public void SetStationPhase(CabStationPhase phase)
         {
             authoring?.SetStationPhase(phase);
+            streamed?.SetStationPhase(phase);
             // Mirrors refresh faster while passengers get on and off.
             if (mirrors != null)
                 mirrors.FastRefresh = phase == CabStationPhase.Approaching || phase == CabStationPhase.WaitingForDoors ||
                                       phase == CabStationPhase.DoorsOpen || phase == CabStationPhase.Releasing;
         }
         public void SetUpcomingStation(CabStationDefinition station) => authoring?.SetStationName(station != null ? station.DisplayName : "Станция");
-        public void SetPassengerReport(CabPassengerStopReport report) => authoring?.SetPassengerReport(report);
-        public void SetPassengerWeather(WeatherType weather) => authoring?.SetPassengerWeather(weather);
+        public void SetPassengerReport(CabPassengerStopReport report)
+        {
+            authoring?.SetPassengerReport(report);
+            streamed?.SetPassengerReport(report);
+        }
+
+        public void SetPassengerWeather(WeatherType weather)
+        {
+            authoring?.SetPassengerWeather(weather);
+            streamed?.SetPassengerWeather(weather);
+        }
 
         public bool HasVisibleScenery(string idFragment)
         {
             if (string.IsNullOrWhiteSpace(idFragment)) return true;
+            if (streamed != null)
+                foreach (Cab3DInteractiveObject item in streamed.Interactives())
+                    if (item.isActiveAndEnabled && item.InteractionId.IndexOf(idFragment, StringComparison.OrdinalIgnoreCase) >= 0) return true;
             for (int i = 0; i < interactives.Count; i++)
                 if (interactives[i] != null && interactives[i].isActiveAndEnabled &&
                     interactives[i].InteractionId.IndexOf(idFragment, StringComparison.OrdinalIgnoreCase) >= 0) return true;
@@ -253,6 +292,14 @@ namespace SortingStation
 
         public bool TryReactToScenery(string idFragment, CabInteractionReaction reaction, float durationSeconds = 2.5f)
         {
+            if (streamed != null)
+                foreach (Cab3DInteractiveObject item in streamed.Interactives())
+                {
+                    if (!item.isActiveAndEnabled) continue;
+                    if (!string.IsNullOrWhiteSpace(idFragment) && item.InteractionId.IndexOf(idFragment, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    item.React(reaction, durationSeconds);
+                    return true;
+                }
             for (int i = 0; i < interactives.Count; i++)
             {
                 Cab3DInteractiveObject item = interactives[i];
@@ -267,11 +314,29 @@ namespace SortingStation
 
         public void SetPreviewSegment(RouteSegmentType type, float progress)
         {
+            if (streamed != null)
+            {
+                for (int i = 0; i < 400; i++)
+                {
+                    WorldChunkPlan plan = streamed.Planner.Get(i);
+                    if (streamed.SegmentFor(plan.Kind).Type != type) continue;
+                    SetPreviewDistance(plan.Start + WorldPlanner.ChunkLength * Mathf.Clamp01(progress));
+                    return;
+                }
+                return;
+            }
             if (journey != null && journey.SetSegment(type, progress, true)) ApplyRoutePose();
         }
 
         public void SetPreviewDistance(float distance)
         {
+            if (streamed != null)
+            {
+                streamed.SetDistance(distance);
+                streamed.LoadAll();
+                TunnelBlend = streamed.TunnelBlend;
+                return;
+            }
             journey?.SetDistance(distance);
             ApplyRoutePose();
         }
@@ -530,7 +595,7 @@ namespace SortingStation
             float sunTravel = EnvironmentClock.SunTravel(dayTime01);
             float arc = EnvironmentClock.SunArc(dayTime01);
             bool badWeather = nativeWeather == WeatherType.Rain || nativeWeather == WeatherType.Snow || nativeWeather == WeatherType.Fog;
-            bool isInsideTunnel = CurrentSegment != null && CurrentSegment.Type == RouteSegmentType.MountainTunnel;
+            bool isInsideTunnel = streamed != null ? TunnelBlend > 0.3f : CurrentSegment != null && CurrentSegment.Type == RouteSegmentType.MountainTunnel;
             float nightAmount = 1f - EnvironmentClock.Daylight(dayTime01);
             if (worldCamera != null)
             {
@@ -607,6 +672,13 @@ namespace SortingStation
             // for Redmi Pad 2's performance profile.
             authoring?.SetScenicNightLighting(arc < 0.42f || badWeather || TunnelBlend > 0.18f);
             atmosphereSky?.Update(arc, nightAmount, badWeather, TunnelBlend);
+            if (streamed != null)
+            {
+                streamed.UpdateLights((arc < 0.42f && nightAmount > 0.05f) || (badWeather && nightAmount > 0.02f), nightAmount,
+                    worldCamera != null ? worldCamera.transform.position : Vector3.zero);
+                if (horizonRing != null && atmosphereSky != null)
+                    horizonRing.Update(routeRoot.localRotation, atmosphereSky.HorizonColor, TunnelBlend);
+            }
             headlights3D?.UpdateHaze(nightAmount, TunnelBlend, badWeather);
         }
 
@@ -701,6 +773,11 @@ namespace SortingStation
         private void OnDestroy()
         {
             if (journey != null) journey.SegmentChanged -= OnJourneySegmentChanged;
+            if (streamed != null)
+            {
+                streamed.SegmentChanged -= OnJourneySegmentChanged;
+                streamed.Dispose();
+            }
             if (sceneRoot != null) Destroy(sceneRoot.gameObject);
             atmosphereSky?.Dispose();
             if (renderTexture != null)

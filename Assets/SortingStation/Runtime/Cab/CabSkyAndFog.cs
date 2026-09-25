@@ -36,7 +36,8 @@ namespace SortingStation
             RenderSettings.sun = sun;
             if (camera != null) camera.clearFlags = CameraClearFlags.Skybox;
             RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
+            // Exponential haze: nearby things stay crisp, the far land fades into the horizon colour.
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             Update(1f, 0f, false, 0f);
         }
@@ -65,6 +66,9 @@ namespace SortingStation
             RenderSettings.fogColor = Color.Lerp(badWeather ? horizon * 0.88f : horizon, TunnelDark, tunnelBlend);
             RenderSettings.fogStartDistance = badWeather ? 35f : 60f;
             RenderSettings.fogEndDistance = badWeather ? farClip * 0.8f : farClip * 0.94f;
+            // About 90 % haze at the far clip on a clear day, much thicker in rain, snow or fog.
+            float clearDensity = 1.5f / Mathf.Max(100f, farClip);
+            RenderSettings.fogDensity = Mathf.Lerp(badWeather ? clearDensity * 2.8f : clearDensity, 0.02f, tunnelBlend);
 
             Color ambient = Color.Lerp(NightAmbient, DayAmbient, day) * (badWeather ? 0.82f : 1f);
             Color finalAmbient = Color.Lerp(ambient, TunnelDark * 1.2f, tunnelBlend);
