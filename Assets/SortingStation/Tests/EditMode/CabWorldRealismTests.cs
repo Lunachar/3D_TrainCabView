@@ -104,6 +104,41 @@ namespace SortingStation.Tests
         }
 
         [Test]
+        public void DeskScreensShowDrivingAndJourneyInformation()
+        {
+            string speed = CabRideController.SpeedScreenText(42.4f, 0.5f, 0.25f, 380.2f);
+            Assert.That(speed, Does.Contain("42"));
+            Assert.That(speed, Does.Contain("Тяга 50%"));
+            Assert.That(speed, Does.Contain("Тормоз 25%"));
+            Assert.That(speed, Does.Contain("До станции 380 м"));
+            Assert.That(CabRideController.SpeedScreenText(0f, 0f, 0f, -1f), Does.Not.Contain("До станции"));
+
+            string info = CabRideController.InfoScreenText("СИСТЕМА ГОТОВА", "Удельная", "Деревня", 0.25f, WeatherType.Snow);
+            Assert.That(info, Does.Contain("СИСТЕМА ГОТОВА"));
+            Assert.That(info, Does.Contain("След.: Удельная"));
+            Assert.That(info, Does.Contain("Деревня"));
+            Assert.That(info, Does.Contain("10:00"));
+            Assert.That(info, Does.Contain("снег"));
+        }
+
+        [Test]
+        public void CabCaptionsAndSignsUseTheDepthTestedTextShader()
+        {
+            GameObject rig = new GameObject("Rig");
+            try
+            {
+                CabCockpitFactory.Create(rig.transform);
+                Assert.That(CabWorldText.Apply(rig.transform), Is.GreaterThan(5));
+                foreach (TextMesh text in rig.GetComponentsInChildren<TextMesh>(true))
+                    Assert.That(text.GetComponent<MeshRenderer>().sharedMaterial.shader.name, Is.EqualTo("SortingStation/WorldText"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(rig);
+            }
+        }
+
+        [Test]
         public void StationArrivalIsAnnouncedByName()
         {
             Assert.That(CabRideController.StationArrivalAnnouncement("Удельная"),
@@ -196,7 +231,7 @@ namespace SortingStation.Tests
                 {
                     Assert.That(camera.enabled, Is.False, "rendered on a budget, not every frame");
                     Assert.That(camera.targetTexture, Is.Not.Null);
-                    Assert.That(camera.targetTexture.width, Is.LessThanOrEqualTo(256));
+                    Assert.That(camera.targetTexture.width * camera.targetTexture.height, Is.LessThanOrEqualTo(256 * 256));
                     Assert.That((camera.cullingMask & (1 << CabCockpitFactory.ControlLayer)) == 0, Is.True);
                     Assert.That(Vector3.Dot(camera.transform.forward, rig.transform.forward), Is.LessThan(-0.9f), "looks back");
                 }

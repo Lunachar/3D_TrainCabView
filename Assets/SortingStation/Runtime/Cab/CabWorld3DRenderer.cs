@@ -28,6 +28,7 @@ namespace SortingStation
         private CabRearMirrors mirrors;
         public const float DriverEyeHeight = 3.25f;
         public const float DriverHeadPitch = 5f;
+        private const float NoseLampAhead = 3f;
         private Light sun;
         private Light headlight;
         private Transform nativeSkyRoot;
@@ -201,6 +202,7 @@ namespace SortingStation
             CabWorldExtras.BuildVergeGrass(routeRoot, journey.CycleLength,
                 settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f, season.season);
             // Last: copy the finished first and last stretches past the ends of the loop.
+            CabWorldText.Apply(routeRoot);
             CabWorldExtras.BuildLapContinuation(routeRoot, journey.CycleLength,
                 worldCamera != null ? worldCamera.farClipPlane + 30f : 270f, 90f);
             // The train is added after the loop copies so it is not copied with the scenery.
@@ -339,6 +341,19 @@ namespace SortingStation
             headlight.range = 34f;
             headlight.spotAngle = 28f;
             headlight.shadows = LightShadows.None;
+            if (immersive)
+            {
+                // Low on the locomotive nose, strong and wide enough to light the track and the
+                // tunnel walls ahead; always per-pixel so the light limit never drops it.
+                headlightObject.transform.localPosition = new Vector3(0f, 1.35f, NoseLampAhead);
+                headlightObject.transform.localRotation = Quaternion.Euler(3.5f, 0f, 0f);
+                headlight.color = new Color(1f, 0.93f, 0.80f);
+                headlight.intensity = 6f;
+                headlight.range = 85f;
+                headlight.spotAngle = 52f;
+                headlight.innerSpotAngle = 24f;
+                headlight.renderMode = LightRenderMode.ForcePixel;
+            }
             headlight.enabled = false;
             BuildNativeSky(immersive ? driverRig : cameraObject.transform);
         }

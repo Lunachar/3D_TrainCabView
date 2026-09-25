@@ -52,6 +52,17 @@ namespace SortingStation
         private float pressTravelScale = 1f;
         private float swayScale = 1f;
         private bool immersive;
+        private bool screenTextsProvided;
+        private string speedScreenText = string.Empty;
+        private string infoScreenText = string.Empty;
+
+        /// <summary>Full texts for the two desk screens (immersive cab); replaces the short defaults.</summary>
+        public void SetScreenTexts(string speedScreen, string infoScreen)
+        {
+            screenTextsProvided = true;
+            speedScreenText = speedScreen ?? string.Empty;
+            infoScreenText = infoScreen ?? string.Empty;
+        }
 
         /// <summary>
         /// Immersive mode: the realistic cab is built in metres around the driver's eye and seen
@@ -70,6 +81,7 @@ namespace SortingStation
             swayScale = motion == MotionLevel.Off ? 0f : motion == MotionLevel.Reduced ? 0.04f : 0.12f;
 
             interior = CabCockpitFactory.Create(driverRig).transform;
+            CabWorldText.Apply(interior);
             interiorRestPosition = interior.localPosition;
             interiorRestRotation = interior.localRotation;
             CacheAnchors();
@@ -245,8 +257,13 @@ namespace SortingStation
                     headlightsOn || cabinLightOn ? 0.52f : 0.18f, deltaTime * 3.4f);
             SetCeilingLampGlow(cabinLightOn);
             AnimateCabinSway(traction01, brake01, speedKph, deltaTime);
-            if (speedReadout != null) speedReadout.text = Mathf.RoundToInt(speedKph).ToString("000") + " km/h";
-            if (stateReadout != null)
+            if (screenTextsProvided)
+            {
+                if (speedReadout != null) speedReadout.text = speedScreenText;
+                if (stateReadout != null) stateReadout.text = infoScreenText;
+            }
+            else if (speedReadout != null) speedReadout.text = Mathf.RoundToInt(speedKph).ToString("000") + " km/h";
+            if (stateReadout != null && !screenTextsProvided)
                 stateReadout.text = string.IsNullOrWhiteSpace(statusText)
                     ? (headlightsOn ? "ФАРЫ ГОТОВЫ" : cabinLightOn ? "КАБИНА ГОТОВА" : "СИСТЕМА ГОТОВА")
                     : statusText;

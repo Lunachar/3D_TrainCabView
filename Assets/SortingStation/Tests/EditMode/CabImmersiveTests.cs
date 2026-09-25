@@ -61,7 +61,7 @@ namespace SortingStation.Tests
                 "Doors3D", "WindowHeater3D" };
             foreach (string name in required)
                 Assert.That(System.Array.Exists(parts, t => t.name == name), Is.True, name);
-            Assert.That(System.Array.FindAll(parts, t => t.name == "GaugeNeedle").Length, Is.EqualTo(3));
+            Assert.That(System.Array.FindAll(parts, t => t.name == "GaugeNeedle").Length, Is.EqualTo(2), "speed and traction dials");
             Assert.That(System.Array.FindAll(parts, t => t.name.StartsWith("CeilingCabinLamp3D")).Length, Is.EqualTo(2));
             TextMesh[] readouts = rig.GetComponentsInChildren<TextMesh>(true);
             Assert.That(System.Array.Exists(readouts, t => t.name == "SpeedScreen3D_Readout"), Is.True);

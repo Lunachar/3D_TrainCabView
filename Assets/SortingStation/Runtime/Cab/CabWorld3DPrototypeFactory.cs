@@ -5,7 +5,7 @@ namespace SortingStation
 {
     public static class CabWorld3DPrototypeFactory
     {
-        public const int CurrentRouteVersion = 38;
+        public const int CurrentRouteVersion = 39;
         private const float OppositeTrackOffset = 4.80f;
         private sealed class MeshBuilder
         {
@@ -1200,14 +1200,23 @@ namespace SortingStation
             // Both lines share one broad tunnel bore.  Center its portal midway between the tracks,
             // otherwise the parallel line appears to run around the outside of the mountain.
             float boreCenter = OppositeTrackOffset * 0.5f;
-            float mountainLength = endDistance - startDistance + 30f;
-            GameObject left = Primitive(root, PrimitiveType.Cube, "TunnelMountainLeft", p + q * new Vector3(boreCenter - 14f, 9f, mountainLength * 0.5f),
-                new Vector3(19f, 19f, mountainLength), rock);
-            GameObject right = Primitive(root, PrimitiveType.Cube, "TunnelMountainRight", p + q * new Vector3(boreCenter + 14f, 9f, mountainLength * 0.5f),
-                new Vector3(19f, 19f, mountainLength), rock);
-            GameObject top = Primitive(root, PrimitiveType.Cube, "TunnelMountainTop", p + q * new Vector3(boreCenter, 14f, mountainLength * 0.5f),
-                new Vector3(23f, 12f, mountainLength), rock);
-            left.transform.rotation = right.transform.rotation = top.transform.rotation = q;
+            // The track curves inside the tunnel, so the rock mass is built in short pieces that
+            // follow it like the lining does. One long straight block used to cut into the
+            // track toward the exit, and the cab drove through the rock.
+            for (float rockDistance = startDistance; rockDistance < endDistance; rockDistance += 5.8f)
+            {
+                Vector3 point = Cab3DTrackMath.Point(rockDistance + 2.9f, cycle);
+                Quaternion heading = Cab3DTrackMath.Heading(rockDistance + 2.9f, cycle);
+                GameObject rockLeft = Primitive(root, PrimitiveType.Cube, "TunnelMountainLeft", point + heading * new Vector3(boreCenter - 12.4f, 9f, 0f),
+                    new Vector3(13f, 19f, 6.2f), rock);
+                GameObject rockRight = Primitive(root, PrimitiveType.Cube, "TunnelMountainRight", point + heading * new Vector3(boreCenter + 12.4f, 9f, 0f),
+                    new Vector3(13f, 19f, 6.2f), rock);
+                GameObject rockTop = Primitive(root, PrimitiveType.Cube, "TunnelMountainTop", point + heading * new Vector3(boreCenter, 12.6f, 0f),
+                    new Vector3(12.2f, 12.6f, 6.2f), rock);
+                rockLeft.transform.rotation = rockRight.transform.rotation = rockTop.transform.rotation = heading;
+            }
+            BuildTunnelFacade(root, startDistance, cycle, boreCenter, rock, -2.5f);
+            BuildTunnelFacade(root, endDistance, cycle, boreCenter, rock, 2.5f);
 
             for (float tunnelDistance = startDistance; tunnelDistance <= endDistance; tunnelDistance += 5.8f)
             {
@@ -1242,6 +1251,20 @@ namespace SortingStation
             }
             CreateTunnelPortal(root, startDistance, cycle, boreCenter, lining, "Entrance");
             CreateTunnelPortal(root, endDistance, cycle, boreCenter, lining, "Exit");
+        }
+
+        /// <summary>Rock face around a portal opening, leaving the bore itself clear.</summary>
+        private static void BuildTunnelFacade(Transform root, float distance, float cycle, float boreCenter, Material rock, float outward)
+        {
+            Vector3 p = Cab3DTrackMath.Point(distance, cycle);
+            Quaternion q = Cab3DTrackMath.Heading(distance, cycle);
+            GameObject left = Primitive(root, PrimitiveType.Cube, "TunnelFacadeLeft", p + q * new Vector3(boreCenter - 19f, 9f, outward),
+                new Vector3(26f, 18f, 5f), rock);
+            GameObject right = Primitive(root, PrimitiveType.Cube, "TunnelFacadeRight", p + q * new Vector3(boreCenter + 19f, 9f, outward),
+                new Vector3(26f, 18f, 5f), rock);
+            GameObject top = Primitive(root, PrimitiveType.Cube, "TunnelFacadeTop", p + q * new Vector3(boreCenter, 13.2f, outward),
+                new Vector3(13f, 12.4f, 5f), rock);
+            left.transform.rotation = right.transform.rotation = top.transform.rotation = q;
         }
 
         private static void CreateTunnelPortal(Transform root, float distance, float cycle, float boreCenter, Material lining, string name)

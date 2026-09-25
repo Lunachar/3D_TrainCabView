@@ -224,13 +224,14 @@ namespace SortingStation
             Vector3 facePoint = hoodCenter + faceNormal * 0.101f;
             Quaternion screenRotation = Quaternion.LookRotation(-faceNormal, faceTilt * Vector3.up);
             Vector3 upper = faceTilt * Vector3.up * 0.05f;
-            CreateScreen(hood, "SpeedScreen3D", facePoint + upper + new Vector3(-0.27f, 0f, 0f), screenRotation, new Vector2(0.34f, 0.14f), p, "000 km/h");
-            CreateScreen(hood, "MessageScreen3D", facePoint + upper + new Vector3(0.27f, 0f, 0f), screenRotation, new Vector2(0.34f, 0.14f), p, "СИСТЕМА ГОТОВА");
+            // Two wide screens carry speed, traction, brake and journey details; the brake
+            // percentage replaced the old centre dial.
+            CreateScreen(hood, "SpeedScreen3D", facePoint + upper + new Vector3(-0.245f, 0f, 0f), screenRotation, new Vector2(0.44f, 0.15f), p, "000 km/h");
+            CreateScreen(hood, "MessageScreen3D", facePoint + upper + new Vector3(0.245f, 0f, 0f), screenRotation, new Vector2(0.44f, 0.15f), p, "СИСТЕМА ГОТОВА");
 
             // Speed, traction and brake-pressure gauges at the outer ends of the hood.
             CreateGauge(hood, facePoint + upper + new Vector3(-0.72f, 0f, 0f), screenRotation, p, "СКОРОСТЬ");
             CreateGauge(hood, facePoint + upper + new Vector3(0.72f, 0f, 0f), screenRotation, p, "ТЯГА");
-            CreateGauge(hood, facePoint + upper, screenRotation, p, "ТОРМОЗ");
         }
 
         private static void BuildControls(Transform root, Palette p)
@@ -500,14 +501,19 @@ namespace SortingStation
 
             GameObject label = new GameObject(name + "_Readout", typeof(TextMesh));
             label.transform.SetParent(screen.transform, false);
-            label.transform.localPosition = new Vector3(0f, 0f, -0.002f);
+            // Text hangs from the top edge: the lower part of the screen can sit behind the round
+            // desk buttons when seen from the driver's seat.
+            label.transform.localPosition = new Vector3(0f, size.y * 0.5f - 0.008f, -0.002f);
             TextMesh text = label.GetComponent<TextMesh>();
             text.text = initialText;
-            text.anchor = TextAnchor.MiddleCenter;
+            text.anchor = TextAnchor.UpperCenter;
             text.alignment = TextAlignment.Center;
-            text.fontSize = 64;
-            text.characterSize = name.StartsWith("Speed") ? 0.0042f : 0.0026f;
-            text.color = new Color(0.30f, 1f, 0.46f);
+            // A large font size keeps the glyphs sharp; rich text sizes the lines.
+            text.fontSize = 96;
+            text.characterSize = 0.0024f;
+            text.richText = true;
+            text.lineSpacing = 0.95f;
+            text.color = new Color(0.36f, 1f, 0.52f);
         }
 
         private static void CreateGauge(Transform parent, Vector3 position, Quaternion rotation, Palette p, string caption)

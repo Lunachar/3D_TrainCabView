@@ -30,6 +30,11 @@ namespace SortingStation
                 yield return CaptureRideTimeline();
                 yield break;
             }
+            if (Array.Exists(Environment.GetCommandLineArgs(), arg => string.Equals(arg, "-routePreview", StringComparison.OrdinalIgnoreCase)))
+            {
+                yield return CaptureRoutePreview();
+                yield break;
+            }
             if (Array.Exists(Environment.GetCommandLineArgs(), arg => string.Equals(arg, "-departurePreview", StringComparison.OrdinalIgnoreCase)))
             {
                 yield return CaptureDeparturePreview();
@@ -119,6 +124,35 @@ namespace SortingStation
             yield return new WaitForSecondsRealtime(0.8f);
             yield return Capture("departure-ready.png", 1600, 1000);
             Debug.Log("DEPARTURE_PREVIEW_COMPLETE=" + outputDirectory);
+            yield return new WaitForSecondsRealtime(0.2f);
+            Application.Quit();
+        }
+
+        /// <summary>Fixed points of the 3D route: station sign and stop, inside the tunnel, end of the loop.</summary>
+        private IEnumerator CaptureRoutePreview()
+        {
+            yield return WaitForScene(SceneNames.MainMenu);
+            AppServices.Instance.Session.Select(GameMode.CabRide, 2);
+            SceneManager.LoadScene(SceneNames.CabRide);
+            yield return WaitForScene(SceneNames.CabRide);
+            yield return new WaitForSecondsRealtime(1.5f);
+            CabRideController cab = FindObjectOfType<CabRideController>();
+            const float cycle = 1170f;
+            (string file, float distance, bool lights)[] shots =
+            {
+                ("01-station-approach.png", cycle * CabRouteLayout.FirstStation01 - 40f, false),
+                ("02-station-stop.png", cycle * CabRouteLayout.FirstStation01 + 23f, false),
+                ("03-tunnel-middle.png", cycle * 0.63f, true),
+                ("04-tunnel-exit.png", cycle * 0.70f, true),
+                ("05-loop-end.png", cycle - 25f, false)
+            };
+            foreach ((string file, float distance, bool lights) in shots)
+            {
+                if (cab != null) cab.ConfigureDistancePreview(distance, lights);
+                yield return new WaitForSecondsRealtime(0.8f);
+                yield return Capture(file, 1600, 1000);
+            }
+            Debug.Log("ROUTE_PREVIEW_COMPLETE=" + outputDirectory);
             yield return new WaitForSecondsRealtime(0.2f);
             Application.Quit();
         }

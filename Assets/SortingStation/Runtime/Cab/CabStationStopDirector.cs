@@ -29,6 +29,11 @@ namespace SortingStation
         public bool DoorsAreOpen => model != null && model.DoorsAreOpen;
         public CabStationPhase Phase => model != null ? model.Phase : CabStationPhase.Idle;
         public CabStationDefinition CurrentStation { get; private set; }
+        /// <summary>Station the train is heading for (the current one while stopping).</summary>
+        public CabStationDefinition NextStation => model != null && model.IsActive && CurrentStation != null
+            ? CurrentStation : CabStationNetwork.AtSequence(stationSequence);
+        /// <summary>Metres to the next stopping point, or a negative value when unknown.</summary>
+        public float DistanceToNextStop { get; private set; } = -1f;
 
         public void Initialize(CabInteractionCatalog interactionCatalog, int seed)
         {
@@ -60,6 +65,7 @@ namespace SortingStation
             float distanceAhead = activeStationTargetDistance >= 0f
                 ? Mathf.Max(0f, activeStationTargetDistance - routeDistance)
                 : Mathf.Max(0f, upcomingTarget - routeDistance);
+            DistanceToNextStop = routeCycleLength >= 100f && (activeStationTargetDistance >= 0f || upcomingTarget >= 0f) ? distanceAhead : -1f;
             bool geometryTrigger = routeCycleLength >= 100f && upcomingTarget >= 0f &&
                                    upcomingTarget - routeDistance <= (catalog != null ? catalog.StationApproachDistance : 92f) &&
                                    Mathf.Abs(upcomingTarget - lastTriggeredStationTargetDistance) > 0.1f;

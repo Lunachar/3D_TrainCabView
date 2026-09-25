@@ -10,8 +10,10 @@ namespace SortingStation
     /// </summary>
     public sealed class CabRearMirrors : MonoBehaviour
     {
-        private const int Width = 256;
-        private const int Height = 192;
+        // The left mirror (platform side, where passengers board) is tall; the right one is wide.
+        private static readonly Vector2Int[] TextureSizes = { new Vector2Int(192, 288), new Vector2Int(256, 192) };
+        private static readonly Vector2[] GlassHalfSizes = { new Vector2(0.105f, 0.15f), new Vector2(0.105f, 0.08f) };
+        private static readonly float[] FieldsOfView = { 50f, 34f };
         private readonly Camera[] cameras = new Camera[2];
         private readonly RenderTexture[] textures = new RenderTexture[2];
         private float nextRender;
@@ -27,17 +29,19 @@ namespace SortingStation
                 float side = i == 0 ? -1f : 1f;
                 Transform mount = new GameObject(i == 0 ? "RearMirror_Left" : "RearMirror_Right").transform;
                 mount.SetParent(driverRig, false);
-                mount.localPosition = new Vector3(side * 0.98f, -0.02f, 1.52f);
+                mount.localPosition = new Vector3(side * 0.98f, i == 0 ? 0.03f : -0.02f, 1.52f);
                 // Turned so its face points back at the driver's eye.
                 mount.localRotation = Quaternion.LookRotation(mount.localPosition.normalized, Vector3.up);
 
-                textures[i] = new RenderTexture(Width, Height, 16, RenderTextureFormat.ARGB32) { name = mount.name + "_RT" };
+                Vector2Int size = TextureSizes[i];
+                Vector2 half = GlassHalfSizes[i];
+                textures[i] = new RenderTexture(size.x, size.y, 16, RenderTextureFormat.ARGB32) { name = mount.name + "_RT" };
                 textures[i].Create();
 
                 GameObject housing = new GameObject("Housing", typeof(MeshFilter), typeof(MeshRenderer));
                 housing.transform.SetParent(mount, false);
                 CabMeshBuilder shell = new CabMeshBuilder(0.2f);
-                shell.AddChamferBox(new Vector3(0f, 0f, 0.025f), new Vector3(0.25f, 0.19f, 0.05f), 0.015f, Quaternion.identity);
+                shell.AddChamferBox(new Vector3(0f, 0f, 0.025f), new Vector3(half.x * 2f + 0.04f, half.y * 2f + 0.03f, 0.05f), 0.015f, Quaternion.identity);
                 shell.AddCylinder(new Vector3(-side * 0.16f, 0f, 0.03f), 0.012f, 0.16f, 8, Quaternion.Euler(0f, 0f, 90f));
                 housing.GetComponent<MeshFilter>().sharedMesh = shell.Build(mount.name + "_Housing");
                 housing.GetComponent<MeshRenderer>().sharedMaterial = CabPbrMaterials.Plain("MirrorHousing", new Color(0.06f, 0.065f, 0.07f), 0.5f);
@@ -47,8 +51,8 @@ namespace SortingStation
                 glass.transform.SetParent(mount, false);
                 glass.transform.localPosition = new Vector3(0f, 0f, -0.002f);
                 Mesh quad = new Mesh { name = mount.name + "_Glass" };
-                const float w = 0.105f;
-                const float h = 0.08f;
+                float w = half.x;
+                float h = half.y;
                 quad.vertices = new[] { new Vector3(-w, -h, 0f), new Vector3(w, -h, 0f), new Vector3(w, h, 0f), new Vector3(-w, h, 0f) };
                 quad.uv = new[] { new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f) };
                 quad.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
@@ -69,7 +73,7 @@ namespace SortingStation
                 cameraObject.transform.localRotation = Quaternion.Euler(4f, 180f - side * 6f, 0f);
                 Camera camera = cameraObject.AddComponent<Camera>();
                 camera.targetTexture = textures[i];
-                camera.fieldOfView = 34f;
+                camera.fieldOfView = FieldsOfView[i];
                 camera.nearClipPlane = 0.3f;
                 camera.farClipPlane = 140f;
                 camera.cullingMask = ~(1 << cockpitLayer);

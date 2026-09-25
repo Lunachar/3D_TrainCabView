@@ -45,6 +45,7 @@ namespace SortingStation.Tests
             Assert.That(settings.RainWiperShader, Is.Not.Null);
             Assert.That(settings.MountainFeatherShader, Is.Not.Null);
             Assert.That(settings.SkyboxShader, Is.Not.Null);
+            Assert.That(settings.WorldTextShader, Is.Not.Null);
         }
 
         [Test]

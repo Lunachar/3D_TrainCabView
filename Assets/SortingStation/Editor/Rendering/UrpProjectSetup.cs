@@ -35,9 +35,9 @@ namespace SortingStation.EditorTools
             UniversalRenderPipelineAsset performance = GetOrCreatePipeline(PerformancePath);
             UniversalRenderPipelineAsset balanced = GetOrCreatePipeline(BalancedPath);
             ConfigurePipeline(performance, renderScale: 0.7f, msaa: 1, shadows: false,
-                shadowDistance: settings.ShadowDistance(CabWorldQuality.Performance), additionalLightsPerObject: 2);
+                shadowDistance: settings.ShadowDistance(CabWorldQuality.Performance), additionalLightsPerObject: 4);
             ConfigurePipeline(balanced, renderScale: 0.8f, msaa: 2, shadows: true,
-                shadowDistance: settings.ShadowDistance(CabWorldQuality.Balanced), additionalLightsPerObject: 4);
+                shadowDistance: settings.ShadowDistance(CabWorldQuality.Balanced), additionalLightsPerObject: 6);
 
             GraphicsSettings.defaultRenderPipeline = balanced;
             AssignQualityLevels(performance, balanced);
@@ -54,7 +54,8 @@ namespace SortingStation.EditorTools
                 RequireShader("Legacy Shaders/Particles/Additive"),
                 RequireShader("SortingStation/UI/RainWiper"),
                 RequireShader("SortingStation/UI/MountainFeather"),
-                RequireShader("Skybox/Procedural"));
+                RequireShader("Skybox/Procedural"),
+                RequireShader("SortingStation/WorldText"));
             EditorUtility.SetDirty(settings);
 
             string conversion = ConvertStandardMaterials();

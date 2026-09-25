@@ -104,6 +104,7 @@ namespace SortingStation
         private bool throttleGripPressed;
         private CabLookAround lookAround;
         private AccessibleButton radioPanelToggle;
+        private float nextScreenTextUpdate;
         private bool screenTapCandidate;
         private Vector2 screenTapStart;
         // Creating the 3D route can take a noticeable fraction of a second on a tablet.  Never
@@ -184,6 +185,7 @@ namespace SortingStation
             {
                 SyncImmersiveOverlays();
                 HandleCockpitTap();
+                UpdateCockpitScreens(brake01);
             }
         }
 
@@ -245,6 +247,17 @@ namespace SortingStation
             UpdateToggleVisual(CabControlAction.CabinLight, true);
             UpdateToggleVisual(CabControlAction.Wipers, true);
             if (tunnel) world.SetPreviewSegment(RouteSegmentType.MountainTunnel, 0.48f);
+        }
+
+        /// <summary>Smoke-capture hook: stand still at a route distance, optionally with headlights on.</summary>
+        public void ConfigureDistancePreview(float distance, bool headlightsOn)
+        {
+            departureAuthorized = true;
+            vigilanceAlarm = false;
+            automaticStop = false;
+            motion.SetThrottle(0f);
+            world?.SetPreviewDistance(distance);
+            if (headlights != headlightsOn) ActivateControl(CabControlAction.Headlights);
         }
 
         public void ConfigureTrackPreview(RouteSegmentType type, float progress)
@@ -577,6 +590,52 @@ namespace SortingStation
             services.Speech.Speak(StationArrivalAnnouncement(station.DisplayName));
         }
 
+        /// <summary>
+        /// Desk screens in the 3D cab: speed, traction, brake and the next stop on the left;
+        /// system state, next station, route section, time and weather on the right.
+        /// </summary>
+        private void UpdateCockpitScreens(float brake01)
+        {
+            if (interior3D == null || Time.unscaledTime < nextScreenTextUpdate) return;
+            nextScreenTextUpdate = Time.unscaledTime + 0.2f;
+            float distance = stationStop != null ? stationStop.DistanceToNextStop : -1f;
+            CabStationDefinition next = stationStop != null ? stationStop.NextStation : null;
+            interior3D.SetScreenTexts(
+                SpeedScreenText(motion.SpeedKph, motion.Throttle01, brake01, distance),
+                InfoScreenText(Interior3DStatus(), next != null ? next.DisplayName : null,
+                    world != null ? world.CurrentSegmentName : null,
+                    journey != null ? journey.DayTime01 : 0.3f, journey != null ? journey.Weather : WeatherType.Clear));
+        }
+
+        public static string SpeedScreenText(float speedKph, float throttle01, float brake01, float distanceToStop)
+        {
+            string stop = distanceToStop >= 0f ? "\nДо станции " + Mathf.RoundToInt(distanceToStop) + " м" : string.Empty;
+            return "<size=170>" + Mathf.RoundToInt(speedKph) + "</size> км/ч\n" +
+                   "Тяга " + Mathf.RoundToInt(throttle01 * 100f) + "%   Тормоз " + Mathf.RoundToInt(brake01 * 100f) + "%" + stop;
+        }
+
+        public static string InfoScreenText(string status, string nextStation, string section, float dayTime01, WeatherType weather)
+        {
+            // The journey clock starts its day at 04:00 (dawn) and wraps after 24 hours.
+            int minutes = Mathf.RoundToInt(Mathf.Repeat(dayTime01 * 24f + 4f, 24f) * 60f) % (24 * 60);
+            string time = (minutes / 60).ToString("00") + ":" + (minutes % 60).ToString("00");
+            string next = string.IsNullOrWhiteSpace(nextStation) ? time : "След.: " + nextStation + " · " + time;
+            string place = string.IsNullOrWhiteSpace(section) ? WeatherName(weather) : section + " · " + WeatherName(weather);
+            return "<size=115>" + status + "</size>\n" + next + "\n" + place;
+        }
+
+        private static string WeatherName(WeatherType weather)
+        {
+            switch (weather)
+            {
+                case WeatherType.Cloudy: return "облачно";
+                case WeatherType.Rain: return "дождь";
+                case WeatherType.Fog: return "туман";
+                case WeatherType.Snow: return "снег";
+                default: return "ясно";
+            }
+        }
+
         /// <summary>Platform announcement spoken as the train pulls into a station.</summary>
         public static string StationArrivalAnnouncement(string stationName) =>
             "Будьте осторожны, на станцию " + stationName + " прибывает поезд.";
@@ -806,7 +865,7 @@ namespace SortingStation
             for (int i = 0; i < bindings.Length; i++)
             {
                 CabControlBinding binding = bindings[i];
-                if (binding.action == CabControlAction.Radio) continue;
+                if (binding.action == CabControlAction.Radio && !Immersive) continue;
                 // In immersive mode the throttle is the 3D lever itself; otherwise it is the HUD slider.
                 if (binding.action == CabControlAction.Throttle && !Immersive) continue;
                 // The whole rectangle remains a large accessible hit target, while the
@@ -888,6 +947,9 @@ namespace SortingStation
 
             if (Immersive)
             {
+                // Drawn last so the lever's enlarged touch area next to it cannot swallow its taps.
+                if (controls.TryGetValue(CabControlAction.Radio, out AccessibleButton radioSwitch))
+                    radioSwitch.transform.SetAsLastSibling();
                 AccessibleButton lever = controls[CabControlAction.Throttle];
                 lever.PointerPressed += SetThrottleFromLever;
                 lever.PointerDragged += SetThrottleFromLever;

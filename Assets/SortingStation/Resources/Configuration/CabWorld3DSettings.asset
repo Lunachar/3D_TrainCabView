@@ -23,6 +23,7 @@ MonoBehaviour:
   rainWiperShader: {fileID: 4800000, guid: 3fbbf8df37072c447a05a15d061e0498, type: 3}
   mountainFeatherShader: {fileID: 4800000, guid: e5b92edb964d8ba4c849d72b333e1aac, type: 3}
   skyboxShader: {fileID: 106, guid: 0000000000000000f000000000000000, type: 0}
+  worldTextShader: {fileID: 4800000, guid: 21a0b999ef0b5bc4d9a5885933ffbbbc, type: 3}
   performanceWidth: 960
   performanceHeight: 384
   balancedWidth: 1280
