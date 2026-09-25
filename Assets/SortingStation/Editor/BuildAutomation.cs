@@ -48,6 +48,18 @@ namespace SortingStation.EditorTools
             Build(WindowsOutput, BuildTarget.StandaloneWindows64, BuildOptions.None);
         }
 
+        // Builds the project exactly as it is, without regenerating scenes and catalogs first.
+        // Used by batchmode smoke captures that compare rendering before and after a change.
+        public static void BuildWindowsWithoutRefresh()
+        {
+            Build(WindowsOutput, BuildTarget.StandaloneWindows64, BuildOptions.None);
+        }
+
+        public static void BuildAndroidWithoutRefresh()
+        {
+            Build(AndroidOutput, BuildTarget.Android, BuildOptions.None);
+        }
+
         public static void BuildAll()
         {
             ProjectBootstrapper.BuildProject();
