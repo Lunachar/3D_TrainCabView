@@ -6,8 +6,8 @@ namespace SortingStation
     public sealed class AppSettings : ScriptableObject
     {
         [Header("Application")]
-        [SerializeField] private string productName = "Сортировочная станция";
-        [SerializeField] private string androidPackageName = "com.lunacharprod.sortingstation";
+        [SerializeField] private string productName = "Живая кабина 3D";
+        [SerializeField] private string androidPackageName = "com.lunacharproduction.traincab3d";
         [SerializeField] private Vector2 referenceResolution = new Vector2(1920f, 1200f);
 
         [Header("Accessible input")]

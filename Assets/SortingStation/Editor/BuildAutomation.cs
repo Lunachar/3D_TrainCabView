@@ -34,10 +34,11 @@ namespace SortingStation.EditorTools
             BuildAndroidApk();
             string adb = Path.Combine(EditorApplication.applicationContentsPath, "PlaybackEngines", "AndroidPlayer", "SDK", "platform-tools", "adb.exe");
             if (!File.Exists(adb)) throw new FileNotFoundException("Unity ADB was not found.", adb);
+            string package = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android);
             Run(adb, "devices");
             Run(adb, "install -r \"" + Path.GetFullPath(AndroidOutput) + "\"");
-            Run(adb, "shell am force-stop com.lunacharprod.sortingstation");
-            Run(adb, "shell monkey -p com.lunacharprod.sortingstation 1");
+            Run(adb, "shell am force-stop " + package);
+            Run(adb, "shell monkey -p " + package + " 1");
         }
 
         [MenuItem("Sorting Station/Build/Windows x64")]

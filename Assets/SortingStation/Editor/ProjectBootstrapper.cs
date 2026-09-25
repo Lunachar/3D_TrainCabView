@@ -27,7 +27,6 @@ namespace SortingStation.EditorTools
         private const string CabThrottleArtRoot = CabArtRoot + "/Throttle";
         private const string CabRouteRoot = Root + "/Data/CabRoutes";
         private const string AudioRoot = Root + "/Audio/Imported";
-        private const string AndroidPackage = "com.lunacharprod.sortingstation";
 
         [InitializeOnLoadMethod]
         private static void ScheduleAutomaticCabCatalogRefresh()
@@ -677,7 +676,7 @@ namespace SortingStation.EditorTools
             PlayerSettings.companyName = "LunacharProduction";
             PlayerSettings.productName = settings.ProductName;
             PlayerSettings.bundleVersion = "1.0.0";
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, AndroidPackage);
+            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, settings.AndroidPackageName);
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
