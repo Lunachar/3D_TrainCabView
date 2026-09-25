@@ -201,22 +201,61 @@ namespace SortingStation
 
         private static void PersistMaterials(GameObject route)
         {
-            Dictionary<Material, Material> persisted = new Dictionary<Material, Material>();
+            // The factory creates a separate Material for every object. Objects whose materials
+            // match share one asset, and a rebuild overwrites the same files instead of adding
+            // "Name 1", "Name 2", ... copies next to the previous build's materials.
+            Dictionary<string, Material> persisted = new Dictionary<string, Material>();
+            Dictionary<string, int> nameUses = new Dictionary<string, int>();
+            HashSet<string> writtenPaths = new HashSet<string>();
             Renderer[] renderers = route.GetComponentsInChildren<Renderer>(true);
             for (int i = 0; i < renderers.Length; i++)
             {
                 Material source = renderers[i].sharedMaterial;
-                if (source == null) continue;
-                if (!persisted.TryGetValue(source, out Material asset))
+                if (source == null || AssetDatabase.Contains(source)) continue;
+                string safeName = Sanitize(source.name);
+                string key = safeName + "\n" + MaterialContent(source);
+                if (!persisted.TryGetValue(key, out Material asset))
                 {
-                    string safeName = Sanitize(source.name);
-                    string path = AssetDatabase.GenerateUniqueAssetPath(MaterialFolder + "/" + safeName + ".mat");
-                    asset = new Material(source);
-                    asset.name = safeName;
-                    AssetDatabase.CreateAsset(asset, path);
-                    persisted[source] = asset;
+                    nameUses.TryGetValue(safeName, out int uses);
+                    nameUses[safeName] = ++uses;
+                    string fileName = uses == 1 ? safeName : safeName + " " + uses;
+                    string path = MaterialFolder + "/" + fileName + ".mat";
+                    asset = AssetDatabase.LoadAssetAtPath<Material>(path);
+                    if (asset == null)
+                    {
+                        asset = new Material(source) { name = fileName };
+                        AssetDatabase.CreateAsset(asset, path);
+                    }
+                    else
+                    {
+                        asset.shader = source.shader;
+                        asset.CopyPropertiesFromMaterial(source);
+                        EditorUtility.SetDirty(asset);
+                    }
+                    writtenPaths.Add(path);
+                    persisted[key] = asset;
                 }
                 renderers[i].sharedMaterial = asset;
+            }
+            DeleteStaleMaterials(writtenPaths);
+        }
+
+        private static string MaterialContent(Material material)
+        {
+            string name = material.name;
+            material.name = string.Empty;
+            string json = EditorJsonUtility.ToJson(material);
+            material.name = name;
+            return json;
+        }
+
+        private static void DeleteStaleMaterials(HashSet<string> writtenPaths)
+        {
+            string[] guids = AssetDatabase.FindAssets("t:Material", new[] { MaterialFolder });
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (!writtenPaths.Contains(path)) AssetDatabase.DeleteAsset(path);
             }
         }
 
