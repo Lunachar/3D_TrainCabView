@@ -22,6 +22,12 @@ namespace SortingStation
         private AndroidJavaObject androidMediaPlayer;
         private AndroidPreparedListener androidPreparedListener;
         private AndroidErrorListener androidErrorListener;
+        // MediaPlayer listeners are invoked on an Android thread, not on Unity's main thread.
+        // They only enqueue events here; Update applies them. The session number drops callbacks
+        // from a player that was already released by a newer start/stop.
+        private readonly object androidRadioEventLock = new object();
+        private readonly Queue<AndroidRadioEvent> androidRadioEvents = new Queue<AndroidRadioEvent>();
+        private int androidRadioSession;
 #endif
         private readonly Dictionary<SoundCue, float> lastPlayTimes = new Dictionary<SoundCue, float>();
         private readonly Dictionary<SoundCue, int> lastVariantIndices = new Dictionary<SoundCue, int>();
@@ -462,8 +468,8 @@ namespace SortingStation
                 onlineRadioPlaying = false;
                 onlineRadioStatus = "Подключение…";
                 androidMediaPlayer = new AndroidJavaObject("android.media.MediaPlayer");
-                androidPreparedListener = new AndroidPreparedListener(this);
-                androidErrorListener = new AndroidErrorListener(this);
+                androidPreparedListener = new AndroidPreparedListener(this, androidRadioSession);
+                androidErrorListener = new AndroidErrorListener(this, androidRadioSession);
                 androidMediaPlayer.Call("setOnPreparedListener", androidPreparedListener);
                 androidMediaPlayer.Call("setOnErrorListener", androidErrorListener);
                 androidMediaPlayer.Call("setAudioStreamType", 3);
@@ -483,12 +489,36 @@ namespace SortingStation
             }
         }
 
-        private void OnAndroidRadioPrepared(AndroidJavaObject player)
+        private void Update()
         {
-            if (!onlineRadioRequested || player == null) return;
+            while (true)
+            {
+                AndroidRadioEvent radioEvent;
+                lock (androidRadioEventLock)
+                {
+                    if (androidRadioEvents.Count == 0) return;
+                    radioEvent = androidRadioEvents.Dequeue();
+                }
+                if (radioEvent.Session != androidRadioSession || androidMediaPlayer == null) continue;
+                if (radioEvent.Prepared) OnAndroidRadioPrepared();
+                else OnAndroidRadioError();
+            }
+        }
+
+        private void EnqueueAndroidRadioEvent(int session, bool prepared)
+        {
+            lock (androidRadioEventLock)
+            {
+                androidRadioEvents.Enqueue(new AndroidRadioEvent(session, prepared));
+            }
+        }
+
+        private void OnAndroidRadioPrepared()
+        {
+            if (!onlineRadioRequested) return;
             try
             {
-                player.Call("start");
+                androidMediaPlayer.Call("start");
                 onlineRadioConnecting = false;
                 onlineRadioPlaying = true;
                 onlineRadioStatus = "Прямой эфир";
@@ -511,36 +541,68 @@ namespace SortingStation
 
         private void ReleaseAndroidMediaPlayer()
         {
+            // Invalidate callbacks that are still in flight for the player being released.
+            androidRadioSession++;
             if (androidMediaPlayer == null) return;
-            try { androidMediaPlayer.Call("stop"); } catch (System.Exception) { }
-            try { androidMediaPlayer.Call("reset"); } catch (System.Exception) { }
-            try { androidMediaPlayer.Call("release"); } catch (System.Exception) { }
+            TryCallAndroidMediaPlayer("stop");
+            TryCallAndroidMediaPlayer("reset");
+            TryCallAndroidMediaPlayer("release");
             androidMediaPlayer.Dispose();
             androidMediaPlayer = null;
             androidPreparedListener = null;
             androidErrorListener = null;
         }
 
+        private void TryCallAndroidMediaPlayer(string method)
+        {
+            try { androidMediaPlayer.Call(method); }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning("Online radio MediaPlayer." + method + " failed: " + exception.Message);
+            }
+        }
+
+        private readonly struct AndroidRadioEvent
+        {
+            public readonly int Session;
+            public readonly bool Prepared;
+
+            public AndroidRadioEvent(int session, bool prepared)
+            {
+                Session = session;
+                Prepared = prepared;
+            }
+        }
+
         private sealed class AndroidPreparedListener : AndroidJavaProxy
         {
             private readonly AudioService owner;
-            public AndroidPreparedListener(AudioService owner) : base("android.media.MediaPlayer$OnPreparedListener")
+            private readonly int session;
+            public AndroidPreparedListener(AudioService owner, int session) : base("android.media.MediaPlayer$OnPreparedListener")
             {
                 this.owner = owner;
+                this.session = session;
             }
-            public void onPrepared(AndroidJavaObject player) => owner.OnAndroidRadioPrepared(player);
+            public void onPrepared(AndroidJavaObject player)
+            {
+                player?.Dispose();
+                owner.EnqueueAndroidRadioEvent(session, true);
+            }
         }
 
         private sealed class AndroidErrorListener : AndroidJavaProxy
         {
             private readonly AudioService owner;
-            public AndroidErrorListener(AudioService owner) : base("android.media.MediaPlayer$OnErrorListener")
+            private readonly int session;
+            public AndroidErrorListener(AudioService owner, int session) : base("android.media.MediaPlayer$OnErrorListener")
             {
                 this.owner = owner;
+                this.session = session;
             }
             public bool onError(AndroidJavaObject player, int what, int extra)
             {
-                owner.OnAndroidRadioError();
+                player?.Dispose();
+                owner.EnqueueAndroidRadioEvent(session, false);
                 return true;
             }
         }
