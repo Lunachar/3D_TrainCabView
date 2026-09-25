@@ -1,6 +1,6 @@
 /Library/
 /Temp/
-/Obj/
+/[Oo]bj/
 /Logs/
 /UserSettings/
 /.vs/
@@ -15,3 +15,6 @@
 /.mcp.json
 *.user
 *.suo
+
+# Personal music for local listening only — never pushed to GitHub.
+/Assets/SortingStation/Audio/Music/*
