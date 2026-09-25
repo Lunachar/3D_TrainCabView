@@ -8,6 +8,9 @@ namespace SortingStation
     public sealed partial class WorldChunkBuilder
     {
         public const float PlatformHeight = 1.1f;
+        /// <summary>While building one side's scenery: -1 left only, +1 right only, 0 both.</summary>
+        private int sideFilter;
+        private bool SideAllowed(float side) => sideFilter == 0 || Mathf.Sign(side) == sideFilter;
         public const float PlatformEdge = -1.95f;
         public const float PlatformWidth = 5.1f;
 
@@ -19,16 +22,22 @@ namespace SortingStation
             if (plan.Crossing) BuildCrossing();
             BuildRoads();
             BuildTrackside();
-            switch (plan.Kind)
+            // Each side of the line gets the buildings of its own kind of scenery.
+            foreach (WorldChunkKind kind in plan.Kind == plan.RightKind ? new[] { plan.Kind } : new[] { plan.Kind, plan.RightKind })
             {
-                case WorldChunkKind.Village: BuildVillage(); break;
-                case WorldChunkKind.Town: BuildTown(); break;
-                case WorldChunkKind.City: BuildCity(); break;
-                case WorldChunkKind.Industrial: BuildIndustry(); break;
-                case WorldChunkKind.Field: BuildFieldDetails(); break;
-                case WorldChunkKind.Foothills: BuildBoulders(6); break;
-                case WorldChunkKind.Tunnel: BuildBoulders(4); break;
+                sideFilter = plan.Kind == plan.RightKind ? 0 : kind == plan.Kind ? -1 : 1;
+                switch (kind)
+                {
+                    case WorldChunkKind.Village: BuildVillage(); break;
+                    case WorldChunkKind.Town: BuildTown(); break;
+                    case WorldChunkKind.City: BuildCity(); break;
+                    case WorldChunkKind.Industrial: BuildIndustry(); break;
+                    case WorldChunkKind.Field: BuildFieldDetails(); break;
+                    case WorldChunkKind.Foothills: BuildBoulders(6); break;
+                    case WorldChunkKind.Tunnel: BuildBoulders(4); break;
+                }
             }
+            sideFilter = 0;
             BuildFeatures();
             // Underground, station lamps count as tunnel lights (lit whenever the train is inside).
             if (plan.Kind == WorldChunkKind.Tunnel)
@@ -314,6 +323,7 @@ namespace SortingStation
         {
             for (int side = -1; side <= 1; side += 2)
             {
+                if (!SideAllowed(side)) continue;
                 if (Chance(0.3f)) continue;
                 float length = Range(40f, 70f), depth = Range(20f, 32f);
                 float centre = plan.Start + WorldPlanner.ChunkLength * 0.5f + Range(-15f, 15f);

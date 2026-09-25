@@ -68,6 +68,8 @@ namespace SortingStation
     {
         public int Index;
         public WorldChunkKind Kind;
+        /// <summary>What lies to the right of the line; usually the same as <see cref="Kind"/> (left side).</summary>
+        public WorldChunkKind RightKind;
         /// <summary>Track curvature (1/m) reached after the chunk's ease-in; 0 is straight.</summary>
         public float EndCurvature;
         /// <summary>Station number along the journey (names come from CabStationNetwork), or -1.</summary>
@@ -90,6 +92,8 @@ namespace SortingStation
         public int Seed;
 
         public bool IsStation => StationNumber >= 0;
+        public WorldChunkKind KindOnSide(int side) => side < 0 ? Kind : RightKind;
+        public bool Has(WorldChunkKind kind) => Kind == kind || RightKind == kind;
         public float Start => Index * WorldPlanner.ChunkLength;
         public float End => Start + WorldPlanner.ChunkLength;
     }
@@ -320,6 +324,9 @@ namespace SortingStation
             bool roadRight = random.NextDouble() < 0.5;
             bool bothSides = kind == WorldChunkKind.City || (kind == WorldChunkKind.Town && random.NextDouble() < 0.5);
             bool dense = kind == WorldChunkKind.City && random.NextDouble() < 0.5;
+            // A third of the runs show a different world on the right: a town facing a forest, a village facing fields...
+            WorldChunkKind right = kind;
+            if (random.NextDouble() < 0.33) right = PartnerOf(kind);
             for (int i = 0; i < length; i++)
             {
                 int index = first + i;
@@ -327,6 +334,7 @@ namespace SortingStation
                 {
                     Index = index,
                     Kind = kind,
+                    RightKind = right,
                     StationNumber = -1,
                     Seed = Hash(seed, index)
                 };
@@ -360,6 +368,23 @@ namespace SortingStation
             }
             lastRun = kind;
             lastRunEnd[kind] = plans.Count;
+        }
+
+        private WorldChunkKind PartnerOf(WorldChunkKind kind)
+        {
+            WorldChunkKind[] options;
+            switch (kind)
+            {
+                case WorldChunkKind.Town: options = new[] { WorldChunkKind.Forest, WorldChunkKind.Field, WorldChunkKind.Meadow, WorldChunkKind.Industrial }; break;
+                case WorldChunkKind.City: options = new[] { WorldChunkKind.Forest, WorldChunkKind.Industrial, WorldChunkKind.Town }; break;
+                case WorldChunkKind.Village: options = new[] { WorldChunkKind.Forest, WorldChunkKind.Field, WorldChunkKind.Meadow }; break;
+                case WorldChunkKind.Industrial: options = new[] { WorldChunkKind.Meadow, WorldChunkKind.Town, WorldChunkKind.Forest }; break;
+                case WorldChunkKind.Meadow: options = new[] { WorldChunkKind.Forest, WorldChunkKind.Village, WorldChunkKind.Field }; break;
+                case WorldChunkKind.Field: options = new[] { WorldChunkKind.Forest, WorldChunkKind.Village, WorldChunkKind.Meadow }; break;
+                case WorldChunkKind.Forest: options = new[] { WorldChunkKind.Field, WorldChunkKind.Meadow, WorldChunkKind.Village }; break;
+                default: return kind;
+            }
+            return options[random.Next(0, options.Length)];
         }
 
         private float PickCurvature()

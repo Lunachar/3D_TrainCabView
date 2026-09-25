@@ -27,6 +27,7 @@ namespace SortingStation
         [SerializeField] private Shader worldTextShader;
         [SerializeField] private Shader terrainShader;
         [SerializeField] private Shader impostorBakeShader;
+        [SerializeField] private Shader glintShader;
 
         [Header("Render texture")]
         [SerializeField] [Min(640)] private int performanceWidth = 960;
@@ -80,6 +81,7 @@ namespace SortingStation
         public Shader WorldTextShader => worldTextShader;
         public Shader TerrainShader => terrainShader;
         public Shader ImpostorBakeShader => impostorBakeShader;
+        public Shader GlintShader => glintShader;
         public int RenderWidth(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performanceWidth : balancedWidth;
         public int RenderHeight(CabWorldQuality quality) => quality == CabWorldQuality.Performance ? performanceHeight : balancedHeight;
         public float CameraFieldOfView => cameraFieldOfView;
@@ -104,7 +106,7 @@ namespace SortingStation
 
         public void ConfigureRendering(RenderPipelineAsset performance, RenderPipelineAsset balanced,
             Shader lit, Shader unlitTexture, Shader unlitTransparent, Shader sprite, Shader additive,
-            Shader rainWiper, Shader mountainFeather, Shader skybox, Shader worldText, Shader terrain, Shader impostorBake)
+            Shader rainWiper, Shader mountainFeather, Shader skybox, Shader worldText, Shader terrain, Shader impostorBake, Shader glint)
         {
             performancePipeline = performance;
             balancedPipeline = balanced;
@@ -119,6 +121,7 @@ namespace SortingStation
             worldTextShader = worldText;
             terrainShader = terrain;
             impostorBakeShader = impostorBake;
+            glintShader = glint;
         }
 #endif
     }

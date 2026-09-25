@@ -329,17 +329,17 @@ namespace SortingStation
             float ax = Mathf.Abs(x - WorldTerrain.CorridorCentre);
             float clump = Mathf.PerlinNoise(Mathf.Repeat(d * 0.018f, 4000f) + 3.3f, Mathf.Repeat(x * 0.018f, 4000f) + 7.7f);
             float p = 0f;
-            p += terrain.Weight(d, WorldChunkKind.Forest) * (ax < 14f ? 0.25f : 0.9f);
-            p += terrain.Weight(d, WorldChunkKind.Meadow) * (clump > 0.62f ? 0.55f : 0.02f);
-            p += terrain.Weight(d, WorldChunkKind.Water) * (clump > 0.55f ? 0.4f : 0.04f);
-            p += terrain.Weight(d, WorldChunkKind.Village) * (ax > 18f && ax < 90f ? 0.12f : 0.03f);
-            p += terrain.Weight(d, WorldChunkKind.Town) * 0.03f;
-            p += terrain.Weight(d, WorldChunkKind.City) * 0.004f;
-            p += terrain.Weight(d, WorldChunkKind.Industrial) * 0.015f;
-            p += terrain.Weight(d, WorldChunkKind.Foothills) * (ax < 20f ? 0.08f : 0.4f);
-            p += terrain.Weight(d, WorldChunkKind.Tunnel) * 0.3f;
+            p += terrain.Weight(d, x, WorldChunkKind.Forest) * (ax < 14f ? 0.25f : 0.9f);
+            p += terrain.Weight(d, x, WorldChunkKind.Meadow) * (clump > 0.62f ? 0.55f : 0.02f);
+            p += terrain.Weight(d, x, WorldChunkKind.Water) * (clump > 0.55f ? 0.4f : 0.04f);
+            p += terrain.Weight(d, x, WorldChunkKind.Village) * (ax > 18f && ax < 90f ? 0.12f : 0.03f);
+            p += terrain.Weight(d, x, WorldChunkKind.Town) * 0.03f;
+            p += terrain.Weight(d, x, WorldChunkKind.City) * 0.004f;
+            p += terrain.Weight(d, x, WorldChunkKind.Industrial) * 0.015f;
+            p += terrain.Weight(d, x, WorldChunkKind.Foothills) * (ax < 20f ? 0.08f : 0.4f);
+            p += terrain.Weight(d, x, WorldChunkKind.Tunnel) * 0.3f;
             // Fields: shelter belts of trees along the parcel edges.
-            float field = terrain.Weight(d, WorldChunkKind.Field);
+            float field = terrain.Weight(d, x, WorldChunkKind.Field);
             if (field > 0f)
             {
                 float belt = Mathf.Repeat(ax - 70f, 160f);
@@ -347,15 +347,15 @@ namespace SortingStation
             }
             if (!Chance(p * density)) return false;
 
-            float spruceShare = 0.25f + terrain.Weight(d, WorldChunkKind.Foothills) * 0.5f + terrain.Weight(d, WorldChunkKind.Tunnel) * 0.6f +
-                                terrain.Weight(d, WorldChunkKind.Forest) * (clump > 0.5f ? 0.35f : 0f);
+            float spruceShare = 0.25f + terrain.Weight(d, x, WorldChunkKind.Foothills) * 0.5f + terrain.Weight(d, x, WorldChunkKind.Tunnel) * 0.6f +
+                                terrain.Weight(d, x, WorldChunkKind.Forest) * (clump > 0.5f ? 0.35f : 0f);
             double pick = random.NextDouble();
-            bool open = terrain.Weight(d, WorldChunkKind.Forest) < 0.5f;
+            bool open = terrain.Weight(d, x, WorldChunkKind.Forest) < 0.5f;
             if (open && pick < 0.3) species = CabTreeSpecies.Bush;
             else if (pick < spruceShare + (open ? 0.3 : 0)) species = CabTreeSpecies.Spruce;
             else if (random.NextDouble() < 0.45) species = CabTreeSpecies.Birch;
             if (species == CabTreeSpecies.Bush) scale = Range(0.7f, 1.3f);
-            if (terrain.Weight(d, WorldChunkKind.Village) > 0.5f && species == CabTreeSpecies.Broadleaf) scale *= 0.75f;
+            if (terrain.Weight(d, x, WorldChunkKind.Village) > 0.5f && species == CabTreeSpecies.Broadleaf) scale *= 0.75f;
             return true;
         }
 

@@ -17,6 +17,8 @@ namespace SortingStation
         public readonly List<Light> TunnelLights = new List<Light>();
         /// <summary>Things that only appear after dark (the station attendant with the lantern).</summary>
         public readonly List<GameObject> NightOnly = new List<GameObject>();
+        /// <summary>Things that are only there in daylight (the attendant with the flag).</summary>
+        public readonly List<GameObject> DayOnly = new List<GameObject>();
         public readonly List<Transform> CrossingArms = new List<Transform>();
         public readonly List<Quaternion> CrossingArmRest = new List<Quaternion>();
         public readonly List<Renderer> CrossingLamps = new List<Renderer>();

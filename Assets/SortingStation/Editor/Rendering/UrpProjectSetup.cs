@@ -54,10 +54,11 @@ namespace SortingStation.EditorTools
                 RequireShader("Legacy Shaders/Particles/Additive"),
                 RequireShader("SortingStation/UI/RainWiper"),
                 RequireShader("SortingStation/UI/MountainFeather"),
-                RequireShader("Skybox/Procedural"),
+                RequireShader("SortingStation/Sky"),
                 RequireShader("SortingStation/WorldText"),
                 RequireShader("SortingStation/TerrainBlend"),
-                RequireShader("SortingStation/ImpostorBake"));
+                RequireShader("SortingStation/ImpostorBake"),
+                RequireShader("SortingStation/Glint"));
             EditorUtility.SetDirty(settings);
 
             string conversion = ConvertStandardMaterials();

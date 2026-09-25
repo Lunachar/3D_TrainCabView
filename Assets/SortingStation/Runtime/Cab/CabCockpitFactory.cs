@@ -29,7 +29,7 @@ namespace SortingStation
 
         // Windscreen: the sill sits below the view line and the header just above it.
         private const float GlassHalfWidth = 1.02f;
-        private const float SillY = -0.25f;
+        private const float SillY = -0.36f;
         private const float SillZ = 1.22f;
         private const float HeaderY = 0.40f;
         private const float HeaderZ = 1.04f;
@@ -215,9 +215,12 @@ namespace SortingStation
             // controls, where the driver actually looks.
             Quaternion faceTilt = Quaternion.Euler(-24f, 0f, 0f);
             Vector3 hoodCenter = new Vector3(0f, -0.21f, 1.04f);
+            // The hood body sits lower than the instruments so the view over it is wider; the
+            // screens and dials keep their place and stand up from it in their own bezels.
+            Vector3 bodyCenter = hoodCenter + new Vector3(0f, -0.1f, 0.02f);
             CabMeshBuilder body = new CabMeshBuilder(0.6f);
-            body.AddChamferBox(hoodCenter, new Vector3(1.66f, 0.25f, 0.2f), 0.03f, faceTilt);
-            body.AddChamferBox(hoodCenter + new Vector3(0f, 0.13f, 0.05f), new Vector3(1.7f, 0.03f, 0.26f), 0.012f, Quaternion.Euler(-6f, 0f, 0f));
+            body.AddChamferBox(bodyCenter, new Vector3(1.66f, 0.25f, 0.2f), 0.03f, faceTilt);
+            body.AddChamferBox(bodyCenter + new Vector3(0f, 0.13f, 0.05f), new Vector3(1.7f, 0.025f, 0.24f), 0.01f, Quaternion.Euler(-6f, 0f, 0f));
             MeshPart(hood, "HoodBody", body, p.Console);
 
             Vector3 faceNormal = faceTilt * Vector3.back;
@@ -487,6 +490,8 @@ namespace SortingStation
         {
             CabMeshBuilder bezel = new CabMeshBuilder(0.2f);
             bezel.AddChamferBox(Vector3.zero, new Vector3(size.x + 0.03f, size.y + 0.03f, 0.016f), 0.005f, Quaternion.identity);
+            // A shallow case behind the screen, since the screens now stand above the hood body.
+            bezel.AddChamferBox(new Vector3(0f, -0.01f, 0.045f), new Vector3(size.x + 0.01f, size.y + 0.01f, 0.075f), 0.008f, Quaternion.identity);
             GameObject bezelObject = MeshPart(parent, name + "_Bezel", bezel, p.Black);
             bezelObject.transform.localPosition = position;
             bezelObject.transform.localRotation = rotation;

@@ -36,6 +36,10 @@ namespace SortingStation
         private CabStreamedWorld streamed;
         private HorizonRing horizonRing;
         private float lastNight01;
+        private float lastDayTime01;
+        private int dayCount;
+        private SunGlare glare;
+        private ShootingStars shootingStars;
         private Transform nativeSkyRoot;
         private Transform nativeSunDisc;
         private Transform nativeMoonDisc;
@@ -129,6 +133,10 @@ namespace SortingStation
                 for (int i = 0; i < nativeMountains.Length; i++)
                     if (nativeMountains[i] != null) nativeMountains[i].gameObject.SetActive(false);
             atmosphereSky = new CabSkyAndFog(worldCamera, sun, worldCamera.farClipPlane);
+            // The shader sky draws clouds, stars and the moon; the old billboard sky goes.
+            if (nativeSkyRoot != null) nativeSkyRoot.gameObject.SetActive(false);
+            glare = worldCamera.gameObject.AddComponent<SunGlare>();
+            shootingStars = SceneRoot.gameObject.AddComponent<ShootingStars>();
             // The locomotive body around the cab is only for the mirrors; from inside it would
             // just hide the view.
             worldCamera.cullingMask &= ~(1 << CabTrainConsist.ExteriorLayer);
@@ -631,11 +639,27 @@ namespace SortingStation
                 float daylight = 1f - nightAmount;
                 // After dusk the sun sinks below the horizon, so the procedural sky goes dark
                 // instead of keeping a sunset glow all night.
-                sun.transform.rotation = Quaternion.Euler(Mathf.Lerp(-10f, 18f + arc * 50f, daylight), Mathf.Lerp(-68f, 62f, sunTravel), 0f);
+                // The sun rises low (for long golden hours) and keeps its place in the world as
+                // the train turns, so shadows and the bright sky move across the windscreen.
+                Quaternion world = streamed != null ? routeRoot.rotation : Quaternion.identity;
+                sun.transform.rotation = world * Quaternion.Euler(Mathf.Lerp(-8f, 2f + arc * 60f, daylight), Mathf.Lerp(-68f, 62f, sunTravel), 0f);
+                if (atmosphereSky != null)
+                {
+                    if (dayTime01 < lastDayTime01 - 0.5f) dayCount++;
+                    lastDayTime01 = dayTime01;
+                    // The moon shows on most clear nights, in a phase that changes night by night.
+                    float moonUp = WorldPlanner.Hash(dayCount, 91) % 100 < 65 ? 1f : 0f;
+                    float phase = Mathf.Repeat(dayCount * 0.27f, 2f) - 1f;
+                    Vector3 moonToward = world * (Quaternion.Euler(-(12f + 38f * Mathf.Sin(EnvironmentClock.MoonTravel(dayTime01) * Mathf.PI)),
+                        Mathf.Lerp(70f, -60f, EnvironmentClock.MoonTravel(dayTime01)), 0f) * Vector3.forward);
+                    atmosphereSky.SetCelestial(-sun.transform.forward, moonToward, world, moonUp, phase);
+                }
                 // At night only faint blue moonlight remains, so the headlights and lamps show.
                 float dayIntensity = Mathf.Lerp(0.38f, settings != null ? settings.SunlightIntensity : 0.86f, arc);
                 sun.intensity = Mathf.Lerp(0.05f, dayIntensity, daylight) * (badWeather ? 0.44f : 1f) * Mathf.Lerp(1f, 0.2f, TunnelBlend);
-                sun.color = Color.Lerp(new Color(0.55f, 0.65f, 0.95f), settings != null ? settings.Sunlight : new Color(1f, 0.93f, 0.78f), daylight);
+                Color dayColour = settings != null ? settings.Sunlight : new Color(1f, 0.93f, 0.78f);
+                if (atmosphereSky != null) dayColour = Color.Lerp(dayColour, new Color(1f, 0.62f, 0.36f), atmosphereSky.SunsetAmount);
+                sun.color = Color.Lerp(new Color(0.55f, 0.65f, 0.95f), dayColour, daylight);
             }
             if (nativeClouds != null)
                 for (int i = 0; i < nativeClouds.Length; i++)
@@ -676,6 +700,13 @@ namespace SortingStation
             lastNight01 = nightAmount;
             if (streamed != null && atmosphereSky != null) atmosphereSky.Urban = streamed.Urban;
             atmosphereSky?.Update(arc, nightAmount, badWeather, TunnelBlend);
+            if (glare != null && sun != null && atmosphereSky != null)
+                glare.Configure(-sun.transform.forward, atmosphereSky.SunsetAmount, !badWeather && TunnelBlend < 0.05f && nightAmount < 0.6f);
+            // Wires and rail heads flash in the sun; the track runs along +Z at the cab.
+            if (streamed != null)
+                WorldMaterials.SetSunGlint((1f - nightAmount) * (badWeather ? 0.08f : 1f) * (1f - TunnelBlend) *
+                    (1f + (atmosphereSky != null ? atmosphereSky.SunsetAmount : 0f)), Vector3.forward);
+            if (shootingStars != null) shootingStars.Active = !badWeather && TunnelBlend < 0.05f && nightAmount > 0.85f;
             if (streamed != null)
             {
                 streamed.UpdateLights((arc < 0.42f && nightAmount > 0.05f) || (badWeather && nightAmount > 0.02f), nightAmount,

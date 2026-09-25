@@ -15,23 +15,24 @@ namespace SortingStation
         private void BuildFeatures()
         {
             WorldChunkKind kind = plan.Kind;
-            bool open = kind == WorldChunkKind.Meadow || kind == WorldChunkKind.Field;
+            bool open = plan.Has(WorldChunkKind.Meadow) || plan.Has(WorldChunkKind.Field);
             bool summer = season == SeasonType.Summer || season == SeasonType.Autumn;
             BuildPowerLine();
             if (open && Chance(0.12f)) WindTurbines();
-            if ((kind == WorldChunkKind.Village || kind == WorldChunkKind.Field) && Chance(0.22f)) Orchard();
-            if (kind == WorldChunkKind.Field && season == SeasonType.Summer && Chance(0.25f)) Sunflowers();
-            if ((kind == WorldChunkKind.Meadow || kind == WorldChunkKind.Forest) && Chance(0.15f)) Dachas();
-            if ((kind == WorldChunkKind.Meadow || kind == WorldChunkKind.Forest) && Chance(0.14f)) Lake();
-            if (kind == WorldChunkKind.Foothills && Chance(0.35f)) Quarry();
-            if ((kind == WorldChunkKind.City || kind == WorldChunkKind.Town) && Chance(0.3f)) TowerCrane();
-            if ((kind == WorldChunkKind.Town || kind == WorldChunkKind.Village) && Chance(0.18f)) SportsGround();
+            if ((plan.Has(WorldChunkKind.Village) || plan.Has(WorldChunkKind.Field)) && Chance(0.22f)) Orchard();
+            if (plan.Has(WorldChunkKind.Field) && season == SeasonType.Summer && Chance(0.25f)) Sunflowers();
+            if ((plan.Has(WorldChunkKind.Meadow) || plan.Has(WorldChunkKind.Forest)) && Chance(0.15f)) Dachas();
+            if ((plan.Has(WorldChunkKind.Meadow) || plan.Has(WorldChunkKind.Forest)) && Chance(0.14f)) Lake();
+            if (plan.Has(WorldChunkKind.Foothills) && Chance(0.35f)) Quarry();
+            if ((plan.Has(WorldChunkKind.City) || plan.Has(WorldChunkKind.Town)) && Chance(0.3f)) TowerCrane();
+            if ((plan.Has(WorldChunkKind.Town) || plan.Has(WorldChunkKind.Village)) && Chance(0.18f)) SportsGround();
             if (open && Chance(0.08f)) RadioMast();
-            if ((kind == WorldChunkKind.Village || kind == WorldChunkKind.Industrial) && Chance(0.22f)) WaterTower();
-            if (kind == WorldChunkKind.Forest && Chance(0.15f)) Campfire();
+            if ((plan.Has(WorldChunkKind.Village) || plan.Has(WorldChunkKind.Industrial)) && Chance(0.22f)) WaterTower();
+            if (plan.Has(WorldChunkKind.Forest) && Chance(0.15f)) Campfire();
             if (open && summer && Chance(0.3f)) Herd(false);
-            if (kind == WorldChunkKind.Forest && Chance(0.1f)) Herd(true);
+            if (plan.Has(WorldChunkKind.Forest) && Chance(0.1f)) Herd(true);
             if (plan.IsStation && plan.Station == StationStyle.Town && Chance(0.4f)) SteamMonument();
+            if ((plan.Has(WorldChunkKind.City) || plan.Has(WorldChunkKind.Town)) && Chance(0.4f)) Park();
         }
 
         /// <summary>A free spot away from the line: route distance and lateral offset.</summary>
@@ -352,6 +353,38 @@ namespace SortingStation
                 else meshes.For(WorldMaterials.Plain("Antler", new Color(0.7f, 0.62f, 0.5f), 0.3f), 1f)
                     .AddBox(c + q * new Vector3(0f, 1.95f, 1.2f) * s, new Vector3(1.4f, 0.1f, 0.4f), q);
             }
+        }
+
+        /// <summary>A small park: gravel paths in a cross, benches, a fountain, trees and plenty of lamps.</summary>
+        private void Park()
+        {
+            if (!FindSpot(24f, 70f, 16f, out float d, out float x)) return;
+            float g = Ground(d, x);
+            Quaternion r = R(d);
+            WorldMesh gravel = meshes.For(WorldMaterials.Gravel, 3f);
+            gravel.AddBox(P(d, x, g + 0.02f), new Vector3(2.4f, 0.04f, 30f), r);
+            gravel.AddBox(P(d, x, g + 0.02f), new Vector3(24f, 0.04f, 2.4f), r);
+            meshes.For(WorldMaterials.Concrete, 1f, true).AddCylinder(P(d, x, g), 2.2f, 0.6f, 16, Quaternion.identity);
+            meshes.For(WorldMaterials.Water, 1f).AddCylinder(P(d, x, g + 0.05f), 1.9f, 0.5f, 16, Quaternion.identity);
+            for (int i = 0; i < 4; i++)
+            {
+                float a = i * 90f + 45f;
+                Vector2 o = new Vector2(Mathf.Cos(a * Mathf.Deg2Rad), Mathf.Sin(a * Mathf.Deg2Rad));
+                BuildStreetLamp(d + o.y * 5f, x + o.x * 5f, g, 1f, 4f);
+                meshes.For(WorldMaterials.Planks, 1f).AddBox(P(d + o.y * 7.5f, x + o.x * 3f, g + 0.45f), new Vector3(0.5f, 0.08f, 1.6f), r);
+                for (int t = 0; t < 3; t++)
+                {
+                    float td = d + o.y * Range(6f, 13f), tx = x + o.x * Range(6f, 11f);
+                    if (mask.IsFree(td, tx, 1.5f)) extraTrees.Add((td, tx, Chance(0.3f) ? CabTreeSpecies.Birch : CabTreeSpecies.Broadleaf, Range(0.6f, 0.9f)));
+                }
+            }
+            // Lamps along the paths too.
+            foreach (float s2 in new[] { -12f, 12f })
+            {
+                BuildStreetLamp(d + s2, x + 1.8f, g, -1f, 4f);
+                BuildStreetLamp(d, x + s2, g, 1f, 4f);
+            }
+            Block(d - 15f, d + 15f, x - 13f, x + 13f);
         }
 
         private void SteamMonument()

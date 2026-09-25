@@ -183,6 +183,15 @@ namespace SortingStation
                 ("28-station-event-night.png", Find(p => p.IsStation && p.Event != StationEvent.None, WorldPlanner.PlatformCentre - 20f), true, midnight),
                 ("29-concrete-small.png", Find(p => p.Kind == WorldChunkKind.Tunnel && p.Tunnel == TunnelStyle.Concrete && p.Bore == TunnelSize.Small, 60f), true, noon)
             };
+ 
+            float meadowView = Find(p => p.Kind == WorldChunkKind.Meadow || p.Kind == WorldChunkKind.Field, 40f);
+            (string file, float time)[] skies = { ("30-sunrise.png", 0.1f), ("31-morning.png", 0.16f), ("32-noon.png", 0.5f), ("33-sunset.png", 0.78f), ("34-dusk.png", 0.82f), ("35-night-sky.png", 0.97f) };
+            foreach ((string file, float time) in skies)
+            {
+                if (cab != null) cab.ConfigureDistancePreview(meadowView, time > 0.86f, time, true);
+                yield return new WaitForSecondsRealtime(1f);
+                yield return Capture(file, 1600, 1000);
+            }
             Debug.Log("SMOKE_EVENT " + planner.At(Find(p => p.IsStation && p.Event != StationEvent.None, 60f)).Event);
             foreach ((string file, float distance, bool lights, float time) in extra)
             {
@@ -390,6 +399,10 @@ namespace SortingStation
                 yield return null;
                 yield return new WaitForEndOfFrame();
                 Texture2D frame = ScreenCapture.CaptureScreenshotAsTexture();
+                // The screen's alpha channel is meaningless for the player; drop it from the file.
+                Color32[] pixels = frame.GetPixels32();
+                for (int i = 0; i < pixels.Length; i++) pixels[i].a = 255;
+                frame.SetPixels32(pixels);
                 File.WriteAllBytes(path, frame.EncodeToPNG());
                 Destroy(frame);
                 yield return null;

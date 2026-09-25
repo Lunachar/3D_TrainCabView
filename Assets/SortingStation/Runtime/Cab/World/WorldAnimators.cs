@@ -3,6 +3,36 @@ using UnityEngine;
 
 namespace SortingStation
 {
+    /// <summary>The station attendant raises the flag and waves to the driver every few seconds.</summary>
+    public sealed class AttendantWave : MonoBehaviour
+    {
+        private Transform arm;
+        private Quaternion rest;
+        private float nextWave;
+        private float waveStart = -10f;
+
+        public void Configure(Transform[] limbs)
+        {
+            arm = limbs != null && limbs.Length > 1 ? limbs[1] : null;
+            if (arm != null) rest = arm.localRotation;
+            nextWave = Time.time + Random.Range(1f, 5f);
+        }
+
+        private void Update()
+        {
+            if (arm == null) return;
+            if (Time.time >= nextWave)
+            {
+                waveStart = Time.time;
+                nextWave = Time.time + Random.Range(5f, 11f);
+            }
+            float t = (Time.time - waveStart) / 2.6f;
+            float lift = t >= 0f && t <= 1f ? Mathf.Sin(t * Mathf.PI) : 0f;
+            float swing = Mathf.Sin(Time.time * 9f) * 22f * lift;
+            arm.localRotation = rest * Quaternion.Euler(swing, 0f, -150f * Mathf.Clamp01(lift * 1.6f));
+        }
+    }
+
     /// <summary>An LED screen slowly cycling through colours.</summary>
     public sealed class ColorCycle : MonoBehaviour
     {

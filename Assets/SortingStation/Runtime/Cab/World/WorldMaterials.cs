@@ -45,11 +45,41 @@ namespace SortingStation
         public static Material ConcreteSleeper => Get("Concrete034", new Color(0.72f, 0.71f, 0.67f), 0.6f);
         public static Material WoodSleeper => Get("Planks021", new Color(0.42f, 0.30f, 0.20f), 0.5f);
         public static Material Rail => Plain("WorldRail", new Color(0.24f, 0.22f, 0.20f), 0.35f, 0.6f);
-        public static Material RailHead => Plain("WorldRailHead", new Color(0.55f, 0.56f, 0.57f), 0.75f, 0.9f);
+        public static Material RailHead => GlintMaterial("RailHead", new Color(0.50f, 0.51f, 0.52f), 180f);
         public static Material Concrete => Get("Concrete034", new Color(0.80f, 0.79f, 0.75f), 0.6f);
         public static Material DarkConcrete => Get("Concrete034", new Color(0.48f, 0.48f, 0.46f), 0.6f);
         public static Material Steel => Get("Metal046A", new Color(0.46f, 0.48f, 0.50f), 0.7f);
-        public static Material Wire => Plain("WorldWire", new Color(0.12f, 0.10f, 0.08f), 0.4f, 0.5f);
+        public static Material Wire => GlintMaterial("Wire", new Color(0.13f, 0.11f, 0.09f), 320f);
+
+        private static readonly List<Material> Glints = new List<Material>();
+
+        /// <summary>Thin metal that flashes in the sun along its length (wires, rail heads).</summary>
+        public static Material GlintMaterial(string name, Color colour, float sharpness)
+        {
+            string key = "glint|" + name;
+            if (Cache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            Material material = new Material(CabShaders.Glint) { name = "WorldGlint_" + name };
+            material.SetColor("_BaseColor", colour);
+            material.SetFloat("_GlintSharpness", sharpness);
+            material.SetFloat("_GlintStrength", sunGlint);
+            Cache[key] = material;
+            Glints.Add(material);
+            return material;
+        }
+
+        private static float sunGlint = 1f;
+
+        /// <summary>How strongly the sun glints on metal now (0 at night, in the tunnel or overcast).</summary>
+        public static void SetSunGlint(float strength, Vector3 trackAxisWorld)
+        {
+            sunGlint = strength;
+            foreach (Material material in Glints)
+            {
+                if (material == null) continue;
+                material.SetFloat("_GlintStrength", strength);
+                material.SetVector("_GlintAxis", trackAxisWorld);
+            }
+        }
         public static Material Asphalt => Get("Asphalt012", new Color(0.72f, 0.72f, 0.72f), 0.5f);
         public static Material Gravel => Get("Gravel040", new Color(0.80f, 0.78f, 0.72f), 0.5f);
         public static Material Rock => Get("Rock030", new Color(0.72f, 0.70f, 0.66f), 0.6f);

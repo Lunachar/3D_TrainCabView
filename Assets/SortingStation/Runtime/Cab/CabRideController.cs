@@ -252,9 +252,10 @@ namespace SortingStation
         }
 
         /// <summary>Smoke-capture hook: stand still at a route distance, optionally with headlights on.</summary>
-        public void ConfigureDistancePreview(float distance, bool headlightsOn, float dayTime01 = -1f)
+        public void ConfigureDistancePreview(float distance, bool headlightsOn, float dayTime01 = -1f, bool clearWeather = false)
         {
             if (dayTime01 >= 0f) journey?.FreezeDayTime(dayTime01);
+            if (clearWeather) journey?.SetPreviewWeather(WeatherType.Clear, 0f);
             departureAuthorized = true;
             vigilanceAlarm = false;
             automaticStop = false;
@@ -465,8 +466,19 @@ namespace SortingStation
             {
                 RectTransform statusScreen = (RectTransform)status.transform.parent;
                 statusScreen.SetParent(root, false);
-                UiFactory.SetRect(statusScreen, new Vector2(0.31f, 0.80f), new Vector2(0.69f, 0.895f), Vector2.zero, Vector2.zero);
+                // A slim one-line ticker at the top instead of a two-line panel over the view.
+                UiFactory.SetRect(statusScreen, new Vector2(0.34f, 0.845f), new Vector2(0.66f, 0.888f), Vector2.zero, Vector2.zero);
                 statusScreen.localRotation = Quaternion.identity;
+                if (statusScreen.GetComponent<RectMask2D>() == null) statusScreen.gameObject.AddComponent<RectMask2D>();
+                status.fontSize = Mathf.Min(status.fontSize, 22f);
+                status.rectTransform.offsetMin = new Vector2(status.rectTransform.offsetMin.x, 2f);
+                status.rectTransform.offsetMax = new Vector2(status.rectTransform.offsetMax.x, -2f);
+                if (status.GetComponent<MarqueeText>() == null) status.gameObject.AddComponent<MarqueeText>();
+                if (statusCursor != null)
+                {
+                    statusCursor.gameObject.SetActive(false);
+                    statusCursor = null;
+                }
             }
         }
 
@@ -2226,7 +2238,8 @@ namespace SortingStation
 
         private void SetStatus(string value)
         {
-            if (status != null) status.text = value;
+            // The immersive ticker is one line: line breaks become separators.
+            if (status != null) status.text = interior3D != null && value != null ? value.Replace("\n", "  •  ") : value;
         }
 
         private void OnJourneyStatus(string value)

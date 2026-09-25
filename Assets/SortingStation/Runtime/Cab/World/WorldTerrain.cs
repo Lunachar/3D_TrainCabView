@@ -102,17 +102,27 @@ namespace SortingStation
             t = 0f;
         }
 
-        /// <summary>How strongly a kind of scenery is present at d (0..1), including the blend zones.</summary>
-        public float Weight(float d, WorldChunkKind kind)
+        /// <summary>How strongly a kind of scenery is present at d (0..1), averaged over both sides of the line.</summary>
+        public float Weight(float d, WorldChunkKind kind) => (Weight(d, CorridorCentre - 50f, kind) + Weight(d, CorridorCentre + 50f, kind)) * 0.5f;
+
+        /// <summary>How strongly a kind of scenery is present at (d, x), including the blend zones and the change of side.</summary>
+        public float Weight(float d, float x, WorldChunkKind kind)
         {
             Blend(d, out WorldChunkPlan a, out WorldChunkPlan b, out float t);
-            return (a.Kind == kind ? 1f - t : 0f) + (b.Kind == kind ? t : 0f);
+            float right = SideBlend(x);
+            float W(WorldChunkPlan plan) => (plan.Kind == kind ? 1f - right : 0f) + (plan.RightKind == kind ? right : 0f);
+            return W(a) * (1f - t) + W(b) * t;
         }
 
-        private Profile ProfileAt(float d)
+        /// <summary>0 left of the line, 1 right of it; the two sides meet across the track corridor.</summary>
+        public static float SideBlend(float x) => Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-8f, 8f, x - CorridorCentre));
+
+        private Profile ProfileAt(float d, float x)
         {
             Blend(d, out WorldChunkPlan a, out WorldChunkPlan b, out float t);
-            return Profile.Lerp(ProfileOf(a.Kind), ProfileOf(b.Kind), t);
+            float right = SideBlend(x);
+            Profile P(WorldChunkPlan plan) => Profile.Lerp(ProfileOf(plan.Kind), ProfileOf(plan.RightKind), right);
+            return Profile.Lerp(P(a), P(b), t);
         }
 
         /// <summary>0..1 over the last 90 m before a portal: the ground closes into a rock cutting.</summary>
@@ -164,7 +174,7 @@ namespace SortingStation
         /// <param name="insideTunnel">Whether the point is treated as over the bore (portal rows are sampled both ways).</param>
         public float Height(float d, float x, bool insideTunnel)
         {
-            Profile p = ProfileAt(d);
+            Profile p = ProfileAt(d, x);
             float xc = x - CorridorCentre;
             float ax = Mathf.Abs(xc);
             float approach = TunnelApproach(d);
@@ -204,7 +214,7 @@ namespace SortingStation
         /// <summary>Ground layer weights: R soil, G forest floor, B gravel/paving, A crops.</summary>
         public Color Layers(float d, float x)
         {
-            Profile p = ProfileAt(d);
+            Profile p = ProfileAt(d, x);
             float xc = x - CorridorCentre;
             float ax = Mathf.Abs(xc);
             float gravel = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(CorridorHalfWidth - 0.8f, CorridorHalfWidth + 1.5f, ax));

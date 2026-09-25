@@ -19,6 +19,7 @@ namespace SortingStation
         private static readonly Dictionary<int, Vector2> Sizes = new Dictionary<int, Vector2>();
         private static RenderTexture atlas;
         private static Material cardMaterial;
+        private static Texture2D atlasCopy;
         private static SeasonType bakedSeason = (SeasonType)(-1);
 
         public static Material CardMaterial => cardMaterial;
@@ -77,6 +78,16 @@ namespace SortingStation
             commands.Release();
             atlas.GenerateMips();
             foreach (Material material in temporary) Object.DestroyImmediate(material);
+            // A render texture loses its contents when the screen mode changes or the app is
+            // paused on Android, which turned the distant trees into black boards: keep a copy.
+            if (atlasCopy == null)
+                atlasCopy = new Texture2D(atlas.width, atlas.height, TextureFormat.RGBA32, true)
+                    { name = "TreeImpostorAtlasCopy", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = atlas;
+            atlasCopy.ReadPixels(new Rect(0, 0, atlas.width, atlas.height), 0, 0, false);
+            atlasCopy.Apply(true, false);
+            RenderTexture.active = previous;
 
             if (cardMaterial == null)
             {
@@ -87,7 +98,7 @@ namespace SortingStation
                 cardMaterial.SetFloat("_Cull", (float)CullMode.Off);
                 cardMaterial.renderQueue = (int)RenderQueue.AlphaTest;
             }
-            cardMaterial.mainTexture = atlas;
+            cardMaterial.mainTexture = atlasCopy;
         }
 
         /// <summary>Writes the atlas to a PNG (smoke captures use it to check the bake).</summary>

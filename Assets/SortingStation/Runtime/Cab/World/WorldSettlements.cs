@@ -204,9 +204,11 @@ namespace SortingStation
                 }
                 if (!anyRoad) continue;
                 // Street lighting through settlements (the lamps stand on the track side of the road).
-                bool lit = plan.Kind == WorldChunkKind.Village || plan.Kind == WorldChunkKind.Town || plan.Kind == WorldChunkKind.City || plan.Kind == WorldChunkKind.Industrial;
+                WorldChunkKind litKind = plan.KindOnSide(side);
+                bool lit = litKind == WorldChunkKind.Village || litKind == WorldChunkKind.Town || litKind == WorldChunkKind.City || litKind == WorldChunkKind.Industrial;
                 if (!lit) continue;
-                float spacing = plan.Kind == WorldChunkKind.City ? 24f : plan.Kind == WorldChunkKind.Village ? 45f : 30f;
+                WorldChunkKind sideKind = plan.KindOnSide(side);
+                float spacing = sideKind == WorldChunkKind.City ? 15f : sideKind == WorldChunkKind.Town ? 20f : sideKind == WorldChunkKind.Village ? 35f : 28f;
                 for (float d = Mathf.Ceil(plan.Start / spacing) * spacing; d < plan.End; d += spacing)
                 {
                     if (!WorldRoads.TryLateral(planner, terrain, d, side, out float x) || Mathf.Abs(x) > 80f) continue;
@@ -254,6 +256,7 @@ namespace SortingStation
         {
             for (int side = -1; side <= 1; side += 2)
             {
+                if (!SideAllowed(side)) continue;
                 bool road = RoadAt(plan.Start + 60f, side, out float roadX);
                 if (!road) roadX = WorldTerrain.CorridorCentre + side * 70f;
                 for (int row = -1; row <= 1; row += 2)
@@ -285,7 +288,7 @@ namespace SortingStation
         /// <summary>A small church with a drum and an onion dome, on a rise behind the village.</summary>
         private void BuildChurch()
         {
-            float side = Chance(0.5f) ? -1f : 1f;
+            float side = sideFilter != 0 ? sideFilter : Chance(0.5f) ? -1f : 1f;
             float d = plan.Start + Range(30f, 90f);
             float x = WorldTerrain.CorridorCentre + side * Range(60f, 110f);
             if (!mask.IsFree(d, x, 9f)) return;
@@ -310,6 +313,7 @@ namespace SortingStation
         {
             for (int side = -1; side <= 1; side += 2)
             {
+                if (!SideAllowed(side)) continue;
                 float front = RoadAt(plan.Start + 60f, side, out float roadX) ? Mathf.Abs(roadX - WorldTerrain.CorridorCentre) + WorldRoads.HalfWidth + 5f : Range(26f, 34f);
                 float d = plan.Start + Range(3f, 10f);
                 while (d < plan.End - 14f)
@@ -362,6 +366,7 @@ namespace SortingStation
             WorldMesh fence = meshes.For(WorldMaterials.Plain("CityFence", new Color(0.32f, 0.35f, 0.34f), 0.4f, 0.5f), 1f);
             for (int side = -1; side <= 1; side += 2)
             {
+                if (!SideAllowed(side)) continue;
                 float fx = side < 0 ? PlacementMask.CorridorLeft - 1.6f : PlacementMask.CorridorRight + 1.6f;
                 for (float d = plan.Start; d < plan.End - 0.01f; d += 4f)
                 {
@@ -376,6 +381,7 @@ namespace SortingStation
         {
             for (int side = -1; side <= 1; side += 2)
             {
+                if (!SideAllowed(side)) continue;
                 float edge = side < 0 ? PlacementMask.CorridorLeft - 3.5f : PlacementMask.CorridorRight + 3.5f;
                 for (int row = 0; row < 3; row++)
                 {
@@ -446,6 +452,7 @@ namespace SortingStation
         {
             for (int side = -1; side <= 1; side += 2)
             {
+                if (!SideAllowed(side)) continue;
                 float front = RoadAt(plan.Start + 60f, side, out float roadX) ? Mathf.Abs(roadX - WorldTerrain.CorridorCentre) + WorldRoads.HalfWidth + 4f : 16f;
                 for (int row = 0; row < 3; row++)
                 {
@@ -523,6 +530,14 @@ namespace SortingStation
             if (!terminal)
                 for (float d = centre - half + 3f; d <= centre + half - 2f; d += spacing)
                     BuildStreetLamp(d, platformX - 1.9f, PlatformHeight, 1f, 4.5f);
+            // The station square behind the platform is lit as well.
+            if (plan.Station != StationStyle.Gnome)
+                for (int i = -1; i <= 1; i++)
+                {
+                    float lampX = platformX - PlatformWidth * 0.5f - (terminal ? 28f : 18f);
+                    float lampD = centre + i * 14f;
+                    if (mask.IsFree(lampD, lampX, 0.5f)) BuildStreetLamp(lampD, lampX, Ground(lampD, lampX), 1f, 5f);
+                }
             BuildNameBoards(centre, platformX, terminal);
             BuildPassengers(centre, terminal);
             BuildAttendant(centre);
@@ -789,10 +804,106 @@ namespace SortingStation
             light.shadows = LightShadows.None;
             light.enabled = false;
             chunk.Lamps.Add(light);
+            // The lantern throws a beam down the platform toward the arriving train.
+            GameObject beamObject = new GameObject("LanternBeam", typeof(Light), typeof(MeshFilter), typeof(MeshRenderer));
+            beamObject.transform.SetParent(lantern, false);
+            beamObject.transform.rotation = frame.rotation * Quaternion.Euler(9f, 180f, 0f);
+            Light beam = beamObject.GetComponent<Light>();
+            beam.type = LightType.Spot;
+            beam.color = new Color(1f, 0.8f, 0.5f);
+            beam.intensity = 14f;
+            beam.range = 32f;
+            beam.spotAngle = 32f;
+            beam.innerSpotAngle = 10f;
+            beam.shadows = LightShadows.None;
+            beam.enabled = false;
+            chunk.Lamps.Add(beam);
+            Mesh cone = BeamCone(22f, 12f);
+            chunk.Meshes.Add(cone);
+            beamObject.GetComponent<MeshFilter>().sharedMesh = cone;
+            beamObject.GetComponent<MeshRenderer>().sharedMaterial = LanternBeamMaterial;
+            beamObject.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             attendant.AddComponent<LanternSwing>().Configure(lantern);
             attendant.SetActive(false);
             chunk.NightOnly.Add(attendant);
             TrackMaterials(attendant);
+
+            // By day the attendant stands at the same spot with a yellow flag, waving now and then.
+            GameObject dayAttendant = CabWorld3DPrototypeFactory.CreatePassenger(frame, "StationAttendantDay", spot, new Color(0.95f, 0.42f, 0.05f),
+                false, false, false, out _, out _, out Transform[] limbs);
+            dayAttendant.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            if (plan.Station == StationStyle.Gnome) Gnomify(dayAttendant);
+            Transform hand = limbs != null && limbs.Length > 1 && limbs[1] != null ? limbs[1] : dayAttendant.transform;
+            // The flag hangs from the right arm, in world metres whatever the arm's scale.
+            GameObject flagRoot = new GameObject("FlagRoot");
+            flagRoot.transform.SetParent(hand, false);
+            flagRoot.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+            Vector3 lossy = hand.lossyScale;
+            flagRoot.transform.localScale = new Vector3(1f / Mathf.Max(0.01f, lossy.x), 1f / Mathf.Max(0.01f, lossy.y), 1f / Mathf.Max(0.01f, lossy.z));
+            GameObject stick = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            RemoveCollider(stick);
+            stick.name = "FlagStick";
+            stick.transform.SetParent(flagRoot.transform, false);
+            stick.transform.localPosition = new Vector3(0f, -0.25f, 0f);
+            stick.transform.localScale = new Vector3(0.03f, 0.6f, 0.03f);
+            stick.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Plain("FlagStick", new Color(0.3f, 0.22f, 0.12f), 0.3f);
+            GameObject flag = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            RemoveCollider(flag);
+            flag.name = "Flag";
+            flag.transform.SetParent(flagRoot.transform, false);
+            flag.transform.localPosition = new Vector3(0f, -0.45f, 0.2f);
+            flag.transform.localScale = new Vector3(0.02f, 0.25f, 0.38f);
+            flag.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Plain("SignalFlag", new Color(0.98f, 0.82f, 0.05f), 0.3f);
+            dayAttendant.AddComponent<AttendantWave>().Configure(limbs);
+            chunk.DayOnly.Add(dayAttendant);
+            TrackMaterials(dayAttendant);
+        }
+
+        private static Material lanternBeamMaterial;
+        private static Material LanternBeamMaterial
+        {
+            get
+            {
+                if (lanternBeamMaterial != null) return lanternBeamMaterial;
+                lanternBeamMaterial = new Material(CabShaders.Additive) { name = "LanternBeam" };
+                Color tint = new Color(0.45f, 0.36f, 0.22f, 0.5f) * 0.25f;
+                if (lanternBeamMaterial.HasProperty("_TintColor")) lanternBeamMaterial.SetColor("_TintColor", tint);
+                lanternBeamMaterial.color = tint;
+                return lanternBeamMaterial;
+            }
+        }
+
+        /// <summary>Open cone along +Z with alpha fading toward the far end (a visible beam of light).</summary>
+        private static Mesh BeamCone(float length, float halfAngle)
+        {
+            const int sides = 12, rings = 5;
+            Vector3[] vertices = new Vector3[sides * rings];
+            Color[] colours = new Color[vertices.Length];
+            List<int> triangles = new List<int>();
+            float tan = Mathf.Tan(halfAngle * Mathf.Deg2Rad);
+            for (int r = 0; r < rings; r++)
+            {
+                float t = r / (float)(rings - 1);
+                float z = 0.1f + t * length;
+                for (int k = 0; k < sides; k++)
+                {
+                    float a = k / (float)sides * Mathf.PI * 2f;
+                    vertices[r * sides + k] = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * (0.08f + z * tan) + Vector3.forward * z;
+                    colours[r * sides + k] = new Color(1f, 1f, 1f, Mathf.Pow(1f - t, 1.5f));
+                }
+            }
+            for (int r = 0; r < rings - 1; r++)
+                for (int k = 0; k < sides; k++)
+                {
+                    int a = r * sides + k, b = r * sides + (k + 1) % sides, c = a + sides, e = b + sides;
+                    triangles.AddRange(new[] { a, c, b, b, c, e, a, b, c, b, e, c });
+                }
+            Mesh mesh = new Mesh { name = "LanternBeam" };
+            mesh.vertices = vertices;
+            mesh.colors = colours;
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         private void TrackMaterials(GameObject root)

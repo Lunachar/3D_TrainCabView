@@ -54,7 +54,14 @@ namespace SortingStation
         public Transform RouteRoot => routeRoot;
         public int LoadedChunkCount => chunks.Count;
         public RouteSegmentDefinition CurrentSegment => SegmentFor(currentKind);
-        public string CurrentSegmentName => WorldPlanner.KindName(currentKind);
+        public string CurrentSegmentName
+        {
+            get
+            {
+                WorldChunkPlan here = planner.At(Distance);
+                return here.RightKind != here.Kind ? WorldPlanner.KindName(here.Kind) + " и " + WorldPlanner.KindName(here.RightKind).ToLowerInvariant() : WorldPlanner.KindName(currentKind);
+            }
+        }
         public float ViewDistance => chunksAhead * WorldPlanner.ChunkLength;
 
         public float SegmentProgress
@@ -375,6 +382,7 @@ namespace SortingStation
             foreach (WorldChunk chunk in chunks.Values)
             {
                 foreach (GameObject item in chunk.NightOnly) if (item != null && item.activeSelf != night) item.SetActive(night);
+                foreach (GameObject item in chunk.DayOnly) if (item != null && item.activeSelf == night) item.SetActive(!night);
                 SetLightsOn(chunk.Lamps, false);
                 SetLightsOn(chunk.TunnelLights, false);
                 if (night) lightScratch.AddRange(chunk.Lamps);

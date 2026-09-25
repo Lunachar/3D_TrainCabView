@@ -20,8 +20,9 @@ namespace SortingStation
         public static Shader Additive => Resolve(Settings != null ? Settings.AdditiveShader : null, "Legacy Shaders/Particles/Additive");
         public static Shader RainWiper => Resolve(Settings != null ? Settings.RainWiperShader : null, "SortingStation/UI/RainWiper");
         public static Shader MountainFeather => Resolve(Settings != null ? Settings.MountainFeatherShader : null, "SortingStation/UI/MountainFeather");
-        public static Shader Skybox => Resolve(Settings != null ? Settings.SkyboxShader : null, "Skybox/Procedural");
+        public static Shader Skybox => Resolve(Settings != null ? Settings.SkyboxShader : null, "SortingStation/Sky");
         public static Shader ImpostorBake => Resolve(Settings != null ? Settings.ImpostorBakeShader : null, "SortingStation/ImpostorBake");
+        public static Shader Glint => Resolve(Settings != null ? Settings.GlintShader : null, "SortingStation/Glint");
         public static Shader Terrain => Resolve(Settings != null ? Settings.TerrainShader : null, "SortingStation/TerrainBlend");
         public static Shader WorldText => Resolve(Settings != null ? Settings.WorldTextShader : null, "SortingStation/WorldText");
 
