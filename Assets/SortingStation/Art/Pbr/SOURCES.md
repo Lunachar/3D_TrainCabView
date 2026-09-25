@@ -31,3 +31,9 @@ Downloaded 2026-09-25 at 1K resolution and repacked for URP Lit:
 | Planks021 | wooden sleepers, fences | https://ambientcg.com/view?id=Planks021 |
 | Concrete034 | platforms, concrete sleepers | https://ambientcg.com/view?id=Concrete034 |
 | Snow004 | winter ground | https://ambientcg.com/view?id=Snow004 |
+
+## Generated for this project
+
+`Foliage_Broadleaf.png`, `Foliage_Birch.png`, `Foliage_Bush.png` and `Foliage_Spruce.png` are drawn
+procedurally for this project (leaf clusters and a spruce bough on a transparent background) and
+have no third-party source. They are used by `CabTreeFactory` for alpha-clipped foliage cards.

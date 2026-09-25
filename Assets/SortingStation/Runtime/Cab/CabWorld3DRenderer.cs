@@ -23,6 +23,7 @@ namespace SortingStation
         private bool immersive;
         private Transform sceneRoot;
         private Transform driverRig;
+        private CabSkyAndFog atmosphereSky;
         public const float DriverEyeHeight = 3.25f;
         public const float DriverHeadPitch = 7f;
         private Light sun;
@@ -102,6 +103,14 @@ namespace SortingStation
             BuildCameraAndLight();
             BuildRoute();
             ApplyRoutePose();
+            // The procedural sky draws the sun itself; the old sphere and its glow shells go.
+            if (nativeSunDisc != null) Destroy(nativeSunDisc.gameObject);
+            if (nativeSunHalo != null) Destroy(nativeSunHalo.gameObject);
+            if (nativeSunGlare != null) Destroy(nativeSunGlare.gameObject);
+            nativeSunDisc = null;
+            nativeSunHalo = null;
+            nativeSunGlare = null;
+            atmosphereSky = new CabSkyAndFog(worldCamera, sun, worldCamera.farClipPlane);
         }
 
         public void Initialize(RectTransform stage, CabRideDefinition definition, CabSceneryCatalog sceneryCatalog,
@@ -172,7 +181,11 @@ namespace SortingStation
 
         public void ApplySeason(SeasonThemeDefinition season)
         {
-            if (season != null) authoring?.ApplySeason(season.season);
+            if (season == null) return;
+            authoring?.ApplySeason(season.season);
+            if (!immersive) return;
+            CabWorldPbrUpgrade.Apply(routeRoot, season.season);
+            CabVegetation.Populate(routeRoot, season.season);
         }
 
         public void SetDayTime(float time01)
@@ -546,6 +559,7 @@ namespace SortingStation
             // at dusk, during poor weather and inside the tunnel, while remaining free of shadows
             // for Redmi Pad 2's performance profile.
             authoring?.SetScenicNightLighting(arc < 0.42f || badWeather || TunnelBlend > 0.18f);
+            atmosphereSky?.Update(arc, nightAmount, badWeather, TunnelBlend);
         }
 
         private void UpdateSunGlow(Renderer glow, Vector3 position, float glowAmount, bool badWeather, bool isInsideTunnel)
@@ -639,6 +653,7 @@ namespace SortingStation
         {
             if (journey != null) journey.SegmentChanged -= OnJourneySegmentChanged;
             if (sceneRoot != null) Destroy(sceneRoot.gameObject);
+            atmosphereSky?.Dispose();
             if (renderTexture != null)
             {
                 renderTexture.Release();

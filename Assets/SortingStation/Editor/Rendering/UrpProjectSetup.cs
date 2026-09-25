@@ -53,7 +53,8 @@ namespace SortingStation.EditorTools
                 RequireShader("Sprites/Default"),
                 RequireShader("Legacy Shaders/Particles/Additive"),
                 RequireShader("SortingStation/UI/RainWiper"),
-                RequireShader("SortingStation/UI/MountainFeather"));
+                RequireShader("SortingStation/UI/MountainFeather"),
+                RequireShader("Skybox/Procedural"));
             EditorUtility.SetDirty(settings);
 
             string conversion = ConvertStandardMaterials();

@@ -20,6 +20,7 @@ namespace SortingStation
         public static Shader Additive => Resolve(Settings != null ? Settings.AdditiveShader : null, "Legacy Shaders/Particles/Additive");
         public static Shader RainWiper => Resolve(Settings != null ? Settings.RainWiperShader : null, "SortingStation/UI/RainWiper");
         public static Shader MountainFeather => Resolve(Settings != null ? Settings.MountainFeatherShader : null, "SortingStation/UI/MountainFeather");
+        public static Shader Skybox => Resolve(Settings != null ? Settings.SkyboxShader : null, "Skybox/Procedural");
 
         public static Material CreateLit(string name, Color color, float smoothness = 0.12f, float metallic = 0f)
         {

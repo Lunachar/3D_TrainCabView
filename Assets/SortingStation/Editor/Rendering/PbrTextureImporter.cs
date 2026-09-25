@@ -32,6 +32,9 @@ namespace SortingStation.EditorTools
             {
                 importer.textureType = TextureImporterType.Default;
                 importer.sRGBTexture = true;
+                // Foliage cards are alpha-clipped: bleed leaf colour into the transparent texels
+                // so mipmaps do not darken the leaf edges.
+                importer.alphaIsTransparency = assetPath.Contains("/Foliage_");
             }
         }
     }
