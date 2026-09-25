@@ -87,6 +87,22 @@ namespace SortingStation.Tests
             }
         }
 
+        [Test]
+        public void HillsStayOutOfTheTrackCorridorAndRiseInTheMountains()
+        {
+            const float cycle = 1170f;
+            for (float d = 0f; d < cycle; d += 37f)
+            {
+                Assert.That(CabWorldExtras.HillHeight(0f, d, cycle), Is.EqualTo(0f));
+                Assert.That(CabWorldExtras.HillHeight(-30f, d, cycle), Is.EqualTo(0f));
+                Assert.That(CabWorldExtras.HillHeight(35f, d, cycle), Is.EqualTo(0f));
+                Assert.That(CabWorldExtras.HillHeight(200f, d, cycle), Is.GreaterThan(0f));
+            }
+            float meadow = CabWorldExtras.HillHeight(150f, cycle * 0.05f, cycle);
+            float mountains = CabWorldExtras.HillHeight(150f, cycle * 0.62f, cycle);
+            Assert.That(mountains, Is.GreaterThan(meadow + 15f));
+        }
+
         private static Transform FindByPrefix(Transform parent, string prefix)
         {
             foreach (Transform child in parent)

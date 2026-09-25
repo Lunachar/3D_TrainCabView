@@ -110,6 +110,10 @@ namespace SortingStation
             nativeSunDisc = null;
             nativeSunHalo = null;
             nativeSunGlare = null;
+            // Real hills now reach the horizon; the painted backdrop hills would float in front.
+            if (nativeMountains != null)
+                for (int i = 0; i < nativeMountains.Length; i++)
+                    if (nativeMountains[i] != null) nativeMountains[i].gameObject.SetActive(false);
             atmosphereSky = new CabSkyAndFog(worldCamera, sun, worldCamera.farClipPlane);
         }
 
@@ -184,8 +188,11 @@ namespace SortingStation
             if (season == null) return;
             authoring?.ApplySeason(season.season);
             if (!immersive) return;
+            if (routeRoot.Find(CabWorldExtras.HillsName) == null) CabWorldExtras.BuildHills(routeRoot, journey.CycleLength);
             CabWorldPbrUpgrade.Apply(routeRoot, season.season);
             CabVegetation.Populate(routeRoot, season.season);
+            CabWorldExtras.BuildVergeGrass(routeRoot, journey.CycleLength,
+                settings != null ? settings.SceneryDensity(preferences.cabWorldQuality) : 1f, season.season);
         }
 
         public void SetDayTime(float time01)
