@@ -20,10 +20,13 @@ namespace SortingStation
             if (plan.Kind == WorldChunkKind.Water) BuildRiverAndBridge();
             if (plan.IsStation) BuildStation();
             if (plan.Crossing) BuildCrossing();
+            BuildRoads();
+            BuildTrackside();
             switch (plan.Kind)
             {
                 case WorldChunkKind.Village: BuildVillage(); break;
                 case WorldChunkKind.Town: BuildTown(); break;
+                case WorldChunkKind.City: BuildCity(); break;
                 case WorldChunkKind.Industrial: BuildIndustry(); break;
                 case WorldChunkKind.Field: BuildFieldDetails(); break;
                 case WorldChunkKind.Foothills: BuildBoulders(6); break;
@@ -163,125 +166,6 @@ namespace SortingStation
             mesh.AddBox((from + to) * 0.5f, new Vector3(thickness, thickness, direction.magnitude), Quaternion.LookRotation(direction, Vector3.up));
         }
 
-        // ---- Station --------------------------------------------------------------------------
-
-        private void BuildStation()
-        {
-            float centre = plan.Start + WorldPlanner.PlatformCentre;
-            float half = WorldPlanner.PlatformLength * 0.5f;
-            Quaternion r = R(centre);
-            Block(centre - half - 8f, centre + half + 8f, -34f, PlatformEdge + 0.2f);
-
-            WorldMesh concrete = meshes.For(WorldMaterials.Concrete, 2f, true);
-            float platformX = PlatformEdge - PlatformWidth * 0.5f;
-            concrete.AddBox(P(centre, platformX, PlatformHeight * 0.5f - 0.3f), new Vector3(PlatformWidth, PlatformHeight + 0.6f, WorldPlanner.PlatformLength), r);
-            meshes.For(WorldMaterials.SafetyLine, 1f).AddBox(P(centre, PlatformEdge - 0.35f, PlatformHeight + 0.004f), new Vector3(0.12f, 0.02f, WorldPlanner.PlatformLength - 0.4f), r);
-            meshes.For(WorldMaterials.DarkConcrete, 1f).AddBox(P(centre, PlatformEdge - 0.06f, PlatformHeight - 0.1f), new Vector3(0.14f, 0.22f, WorldPlanner.PlatformLength), r);
-            // Ramps down to the ground at both ends.
-            foreach (float end in new[] { -1f, 1f })
-            {
-                float d = centre + end * (half + 3f);
-                Vector3 normal = R(d) * new Vector3(0f, 1f, -end * 0.35f).normalized;
-                concrete.AddQuad(P(centre + end * half, platformX - 2.2f, PlatformHeight), P(centre + end * half, platformX + 2.2f, PlatformHeight),
-                    P(centre + end * (half + 6f), platformX + 2.2f, Ground(d, platformX)), P(centre + end * (half + 6f), platformX - 2.2f, Ground(d, platformX)), normal);
-            }
-
-            // Canopy over the middle of the platform.
-            WorldMesh steel = meshes.For(WorldMaterials.Steel, 1f, true);
-            WorldMesh roof = meshes.For(WorldMaterials.ShedMetal(2), 2f, true);
-            for (float d = centre - 14f; d <= centre + 14.1f; d += 7f)
-                steel.AddBox(P(d, platformX - 1f, PlatformHeight + 1.6f), new Vector3(0.16f, 3.2f, 0.16f), r);
-            roof.AddBox(P(centre, platformX - 0.6f, PlatformHeight + 3.3f), new Vector3(4.6f, 0.18f, 32f), r * Quaternion.Euler(0f, 0f, -6f), true);
-
-            // Station building behind the platform.
-            float buildingX = platformX - PlatformWidth * 0.5f - 7.5f;
-            float ground = Mathf.Min(PlatformHeight - 0.2f, Ground(centre, buildingX));
-            BuildHouse(centre + 4f, buildingX, 9f, 20f, 4.4f, WorldMaterials.Brick, WorldMaterials.Roof(1), ground, 4, true);
-
-            // Lamps along the platform and benches under the canopy.
-            for (float d = centre - half + 4f; d <= centre + half - 3f; d += 12f)
-                BuildStreetLamp(d, platformX - 1.6f, PlatformHeight, 1f);
-            WorldMesh wood = meshes.For(WorldMaterials.Planks, 1f);
-            for (int i = -1; i <= 1; i++)
-            {
-                float d = centre + i * 8f;
-                wood.AddBox(P(d, platformX - 1.4f, PlatformHeight + 0.45f), new Vector3(0.5f, 0.08f, 1.8f), r);
-                wood.AddBox(P(d, platformX - 1.65f, PlatformHeight + 0.75f), new Vector3(0.06f, 0.5f, 1.8f), r);
-                steel.AddBox(P(d, platformX - 1.4f, PlatformHeight + 0.2f), new Vector3(0.4f, 0.4f, 0.08f), r);
-            }
-
-            // Name boards facing the arriving train.
-            string name = StationName(plan);
-            foreach (float d in new[] { centre - 14f, centre + 16f })
-            {
-                Vector3 position = P(d, platformX - 1.3f, PlatformHeight + 2.4f);
-                steel.AddBox(position + Vector3.down * 1.2f, new Vector3(0.1f, 2.4f, 0.1f), r);
-                GameObject board = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                board.name = "StationSignBoard";
-                Collider collider = board.GetComponent<Collider>();
-                if (Application.isPlaying) Object.Destroy(collider);
-                else Object.DestroyImmediate(collider);
-                board.transform.SetParent(chunk.Root.transform, false);
-                board.transform.localPosition = position;
-                board.transform.localRotation = r;
-                board.GetComponent<Renderer>().sharedMaterial = WorldMaterials.SignBoard;
-                Vector3 forward = r * Vector3.forward;
-                TextMesh front = CabWorld3DPrototypeFactory.CreateStationSignText(chunk.Root.transform, "StationName_" + name, position - forward * 0.06f, r, name);
-                TextMesh back = CabWorld3DPrototypeFactory.CreateStationSignText(chunk.Root.transform, "StationName_Back_" + name, position + forward * 0.06f,
-                    r * Quaternion.Euler(0f, 180f, 0f), name);
-                front.transform.localRotation = r;
-                back.transform.localRotation = r * Quaternion.Euler(0f, 180f, 0f);
-                // The text mesh gets its size only when first drawn; the board fits itself then.
-                board.AddComponent<SignBoardFitter>().Configure(front);
-                chunk.Signs.Add(front);
-                chunk.Signs.Add(back);
-                chunk.SignBoards.Add(board.transform);
-            }
-
-            // People waiting on the platform, in the platform's own frame.
-            Transform frame = new GameObject("PlatformFrame").transform;
-            frame.SetParent(chunk.Root.transform, false);
-            frame.localPosition = P(centre, 0f, PlatformHeight);
-            frame.localRotation = r;
-            chunk.PlatformFrame = frame;
-            int count = 6 + random.Next(0, 7);
-            for (int i = 0; i < count; i++)
-            {
-                float z = Range(-18f, 16f);
-                bool seated = i % 5 == 3;
-                Vector3 platform = new Vector3(Range(PlatformEdge - 3.6f, PlatformEdge - 1.1f), 0f, seated ? Mathf.Round(z / 8f) * 8f : z);
-                Vector3 door = new Vector3(PlatformEdge + 0.35f, 0f, z);
-                Color coat = Color.HSVToRGB((float)random.NextDouble(), Range(0.35f, 0.7f), Range(0.25f, 0.7f));
-                GameObject passenger = CabWorld3DPrototypeFactory.CreatePassenger(frame, "Passenger_" + plan.Index + "_" + i, platform, coat,
-                    i % 6 == 0, seated, i % 3 == 1, out GameObject umbrella, out Renderer coatRenderer, out Transform[] limbs);
-                passenger.transform.localRotation = Quaternion.Euler(0f, Range(40f, 140f), 0f);
-                Cab3DPassengerAgent agent = passenger.AddComponent<Cab3DPassengerAgent>();
-                agent.Configure(platform, door, umbrella, coatRenderer, limbs);
-                passenger.AddComponent<Cab3DInteractiveObject>().Configure("station passenger worker", CabInteractionReaction.Wave);
-                passenger.SetActive(false);
-                chunk.Passengers.Add(agent);
-                foreach (Renderer renderer in passenger.GetComponentsInChildren<Renderer>(true))
-                    if (renderer.sharedMaterial != null && !chunk.Materials.Contains(renderer.sharedMaterial)) chunk.Materials.Add(renderer.sharedMaterial);
-            }
-        }
-
-        public static string StationName(WorldChunkPlan station)
-        {
-            CabStationDefinition definition = CabStationNetwork.AtSequence(station.StationNumber);
-            return definition != null ? definition.DisplayName : "Станция";
-        }
-
-        private void BuildStreetLamp(float d, float x, float baseY, float armSide)
-        {
-            Quaternion r = R(d);
-            WorldMesh steel = meshes.For(WorldMaterials.Steel, 1f, true);
-            steel.AddCylinder(P(d, x, baseY), 0.07f, 5f, 6, r, false);
-            steel.AddBox(P(d, x + armSide * 0.45f, baseY + 5f), new Vector3(0.9f, 0.06f, 0.08f), r);
-            Vector3 head = P(d, x + armSide * 0.9f, baseY + 4.9f);
-            meshes.For(WorldMaterials.LampGlow, 1f).AddBox(head, new Vector3(0.45f, 0.1f, 0.25f), r);
-            chunk.Lamps.Add(CreateLight("ScenicNightLight", head + Vector3.down * 0.3f, LightType.Point, new Color(1f, 0.80f, 0.52f), 1.4f, 12f));
-        }
-
         private Light CreateLight(string name, Vector3 localPosition, LightType type, Color color, float intensity, float range)
         {
             GameObject lightObject = new GameObject(name, typeof(Light));
@@ -320,18 +204,71 @@ namespace SortingStation
                     new Vector2(0f, previousX), new Vector2(halfWidth * 2f, previousX), new Vector2(halfWidth * 2f, x), new Vector2(0f, x));
                 previousX = x;
             }
-            // Barrier posts and arms (raised), warning signs.
+            // Barrier posts with hinged arms (animated by WorldTraffic), red lamps and St Andrew's crosses.
             WorldMesh steel = meshes.For(WorldMaterials.Steel, 1f, true);
-            WorldMesh stripes = meshes.For(WorldMaterials.Plain("BarrierPaint", new Color(0.85f, 0.12f, 0.10f), 0.4f), 1f);
-            foreach ((float d, float x) in new[] { (centre - halfWidth - 1.5f, -4.4f), (centre + halfWidth + 1.5f, SecondTrackOffset + 4.4f) })
+            WorldMesh white = meshes.For(WorldMaterials.Plain("CrossingSignWhite", new Color(0.92f, 0.92f, 0.9f), 0.3f), 1f);
+            (float d, float x, float along)[] posts =
+            {
+                (centre - halfWidth - 0.8f, PlacementMask.CorridorLeft - 4.2f, 1f),
+                (centre + halfWidth + 0.8f, PlacementMask.CorridorRight + 4.2f, -1f)
+            };
+            foreach ((float d, float x, float along) in posts)
             {
                 float ground = Ground(d, x);
-                steel.AddBox(P(d, x, ground + 0.6f), new Vector3(0.35f, 1.2f, 0.35f), R(d));
-                stripes.AddBox(P(d, x, ground + 3.8f), new Vector3(0.12f, 5.2f, 0.12f), R(d));
-                steel.AddBox(P(d, x, ground + 1.6f), new Vector3(0.12f, 3.2f, 0.12f), R(d));
-                meshes.For(WorldMaterials.Plain("CrossingSignWhite", new Color(0.92f, 0.92f, 0.9f), 0.3f), 1f)
-                    .AddBox(P(d, x, ground + 3.1f), new Vector3(1.1f, 0.18f, 0.03f), R(d) * Quaternion.Euler(0f, 0f, 35f));
+                Quaternion r = R(d);
+                steel.AddBox(P(d, x, ground + 1.6f), new Vector3(0.16f, 3.2f, 0.16f), r);
+                steel.AddBox(P(d, x - 0.35f, ground + 0.55f), new Vector3(0.45f, 1.1f, 0.45f), r);
+                white.AddBox(P(d, x, ground + 3.4f), new Vector3(0.05f, 0.2f, 1.3f), r * Quaternion.Euler(35f, 0f, 0f));
+                white.AddBox(P(d, x, ground + 3.4f), new Vector3(0.05f, 0.2f, 1.3f), r * Quaternion.Euler(-35f, 0f, 0f));
+                meshes.For(WorldMaterials.Plain("CrossingLampHood", new Color(0.05f, 0.05f, 0.05f), 0.3f), 1f)
+                    .AddBox(P(d, x, ground + 2.5f), new Vector3(0.2f, 0.4f, 1.0f), r);
+
+                // The arm swings on a pivot at the post; it lies across the lane when lowered.
+                Transform pivot = new GameObject("CrossingBarrier").transform;
+                pivot.SetParent(chunk.Root.transform, false);
+                pivot.localPosition = P(d, x - 0.35f, ground + 1.05f);
+                pivot.localRotation = r;
+                GameObject arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                RemoveCollider(arm);
+                arm.transform.SetParent(pivot, false);
+                arm.transform.localPosition = new Vector3(0f, 0f, along * 2.4f);
+                arm.transform.localScale = new Vector3(0.1f, 0.1f, 4.4f);
+                arm.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Plain("BarrierWhite", new Color(0.92f, 0.92f, 0.9f), 0.4f);
+                for (int k = 0; k < 4; k++)
+                {
+                    GameObject stripe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    RemoveCollider(stripe);
+                    stripe.transform.SetParent(pivot, false);
+                    stripe.transform.localPosition = new Vector3(0f, 0f, along * (0.8f + k * 1.1f));
+                    stripe.transform.localScale = new Vector3(0.11f, 0.11f, 0.45f);
+                    stripe.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Plain("BarrierPaint", new Color(0.85f, 0.12f, 0.10f), 0.4f);
+                }
+                pivot.localRotation = r * Quaternion.Euler(along > 0f ? -84f : 84f, 0f, 0f);
+                chunk.CrossingArms.Add(pivot);
+                chunk.CrossingArmRest.Add(r);
+                for (int k = -1; k <= 1; k += 2)
+                {
+                    GameObject lamp = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    RemoveCollider(lamp);
+                    lamp.transform.SetParent(chunk.Root.transform, false);
+                    lamp.transform.localPosition = P(d + k * 0.3f, x - 0.12f, ground + 2.5f);
+                    lamp.transform.localRotation = r;
+                    lamp.transform.localScale = new Vector3(0.08f, 0.22f, 0.22f);
+                    Renderer lampRenderer = lamp.GetComponent<Renderer>();
+                    lampRenderer.sharedMaterial = WorldMaterials.Plain("CrossingLampOff", new Color(0.25f, 0.05f, 0.04f), 0.6f);
+                    chunk.CrossingLamps.Add(lampRenderer);
+                }
+                Light red = CreateLight("CrossingWarningLight", P(d, x - 0.5f, ground + 2.5f), LightType.Point, new Color(1f, 0.1f, 0.05f), 2f, 9f);
+                chunk.CrossingLights.Add(red);
             }
+        }
+
+        private static void RemoveCollider(GameObject target)
+        {
+            Collider collider = target.GetComponent<Collider>();
+            if (collider == null) return;
+            if (Application.isPlaying) Object.Destroy(collider);
+            else Object.DestroyImmediate(collider);
         }
 
         // ---- Settlements ----------------------------------------------------------------------
@@ -384,42 +321,6 @@ namespace SortingStation
                 }
         }
 
-        private void BuildVillage()
-        {
-            float streetSide = plan.Seed % 2 == 0 ? -1f : 1f;
-            float streetX = WorldTerrain.CorridorCentre + streetSide * Range(24f, 30f);
-            // A gravel lane along the village, following the ground.
-            WorldMesh lane = meshes.For(WorldMaterials.Gravel, 3f);
-            for (float d = plan.Start; d < plan.End - 0.01f; d += 6f)
-            {
-                float e = Mathf.Min(plan.End, d + 6f);
-                lane.AddQuad(P(d, streetX - 2.2f, Ground(d, streetX - 2.2f) + 0.04f), P(d, streetX + 2.2f, Ground(d, streetX + 2.2f) + 0.04f),
-                    P(e, streetX + 2.2f, Ground(e, streetX + 2.2f) + 0.04f), P(e, streetX - 2.2f, Ground(e, streetX - 2.2f) + 0.04f), Vector3.up);
-            }
-            Block(plan.Start, plan.End, streetX - 3f, streetX + 3f);
-            float stationGap = plan.IsStation ? 1f : 0f;
-            for (int row = -1; row <= 1; row += 2)
-            {
-                float d = plan.Start + Range(4f, 12f);
-                while (d < plan.End - 8f)
-                {
-                    float length = Range(6f, 9f), depth = Range(6f, 8f);
-                    float x = streetX + row * Range(9f, 12f);
-                    bool nearTrack = Mathf.Abs(x - WorldTerrain.CorridorCentre) < 16f;
-                    bool stationBlock = stationGap > 0f && streetSide < 0f && row * streetSide < 0f;
-                    if (!nearTrack && !stationBlock && mask.IsFree(d, x, Mathf.Max(length, depth) * 0.5f + 1f))
-                    {
-                        int variant = random.Next(0, 12);
-                        Material walls = variant % 3 == 0 ? WorldMaterials.Plaster(variant) : WorldMaterials.Siding(variant);
-                        BuildHouse(d, x, depth, length, Range(2.8f, 3.4f), walls, WorldMaterials.Roof(variant), MinGround(d, x, depth, length), 2, true);
-                        BuildFence(d, streetX + row * 3.4f, length + Range(6f, 10f));
-                        if (Chance(0.5f)) BuildShed(d + length * 0.5f + 3f, x + row * 3f);
-                    }
-                    d += length + Range(9f, 16f);
-                }
-            }
-        }
-
         private float MinGround(float d, float x, float depth, float length)
         {
             float min = float.MaxValue;
@@ -449,36 +350,6 @@ namespace SortingStation
             meshes.For(WorldMaterials.Planks, 1.5f, true).AddBox(P(d, x, ground + 1f), new Vector3(3f, 2.2f, 3.4f), R(d));
             meshes.For(WorldMaterials.ShedMetal(random.Next(0, 5)), 1.5f, true)
                 .AddBox(P(d, x, ground + 2.2f), new Vector3(3.5f, 0.1f, 3.9f), R(d) * Quaternion.Euler(0f, 0f, 8f));
-        }
-
-        private void BuildTown()
-        {
-            for (int side = -1; side <= 1; side += 2)
-            {
-                float d = plan.Start + Range(3f, 10f);
-                while (d < plan.End - 14f)
-                {
-                    float length = Mathf.Min(Range(24f, 46f), plan.End - 4f - d);
-                    if (length < 16f) break;
-                    float depth = Range(11f, 13f);
-                    float front = Range(26f, 34f);
-                    float x = WorldTerrain.CorridorCentre + side * (front + depth * 0.5f);
-                    float centre = d + length * 0.5f;
-                    if (mask.IsFree(centre, x, length * 0.5f))
-                    {
-                        int floors = Chance(0.35f) ? 9 : 5;
-                        BuildBlock(centre, x, depth, length, floors * 3f, random.Next(0, 4), MinGround(centre, x, depth, length));
-                        // A second row further out.
-                        float back = x + side * Range(22f, 34f);
-                        if (Chance(0.7f) && mask.IsFree(centre, back, length * 0.5f))
-                            BuildBlock(centre, back, depth, length * Range(0.7f, 1f), (Chance(0.5f) ? 9 : 5) * 3f, random.Next(0, 4), MinGround(centre, back, depth, length));
-                    }
-                    d += length + Range(10f, 18f);
-                }
-                // Streetlights along the town street between the track and the houses.
-                for (float d2 = plan.Start + 10f; d2 < plan.End; d2 += 30f)
-                    BuildStreetLamp(d2, WorldTerrain.CorridorCentre + side * 18f, Ground(d2, WorldTerrain.CorridorCentre + side * 18f), -side);
-            }
         }
 
         private void BuildBlock(float d, float x, float depth, float length, float height, int variant, float groundY)

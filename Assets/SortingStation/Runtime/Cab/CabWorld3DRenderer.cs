@@ -35,6 +35,7 @@ namespace SortingStation
         // Immersive mode streams an endless world instead of the looped prototype route.
         private CabStreamedWorld streamed;
         private HorizonRing horizonRing;
+        private float lastNight01;
         private Transform nativeSkyRoot;
         private Transform nativeSunDisc;
         private Transform nativeMoonDisc;
@@ -110,7 +111,7 @@ namespace SortingStation
             sceneRoot = new GameObject("CabWorld3DScene").transform;
             BuildCameraAndLight();
             bool fast = preferences.cabWorldQuality == CabWorldQuality.Performance;
-            streamed = new CabStreamedWorld(SceneRoot, this, ride != null ? ride.RouteSeed : 1, fast ? 5 : 7, fast ? 4 : 6);
+            streamed = new CabStreamedWorld(SceneRoot, this, ride != null ? ride.RouteSeed : 1, fast ? 5 : 7, fast ? 5 : 8);
             streamed.SegmentChanged += OnJourneySegmentChanged;
             routeRoot = streamed.RouteRoot;
             worldCamera.farClipPlane = streamed.ViewDistance + 60f;
@@ -187,6 +188,7 @@ namespace SortingStation
                 streamed.Advance(CabWorldRenderer.CalculateDistanceDelta(speed01, ride.WorldUnitsPerSecond, unscaledDeltaTime));
                 TunnelBlend = streamed.TunnelBlend;
                 UpdateNativeSky(unscaledDeltaTime);
+                streamed.UpdateTraffic(unscaledDeltaTime, lastNight01 > 0.4f);
                 return;
             }
             if (journey == null || ride == null) return;
@@ -671,6 +673,8 @@ namespace SortingStation
             // at dusk, during poor weather and inside the tunnel, while remaining free of shadows
             // for Redmi Pad 2's performance profile.
             authoring?.SetScenicNightLighting(arc < 0.42f || badWeather || TunnelBlend > 0.18f);
+            lastNight01 = nightAmount;
+            if (streamed != null && atmosphereSky != null) atmosphereSky.Urban = streamed.Urban;
             atmosphereSky?.Update(arc, nightAmount, badWeather, TunnelBlend);
             if (streamed != null)
             {

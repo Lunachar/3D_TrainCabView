@@ -159,6 +159,35 @@ namespace SortingStation
             float tunnel = Find(p => p.TunnelEntrance, WorldPlanner.PortalInset);
             const float noon = 0.5f;
             const float midnight = 0.95f;
+            float crossing = Find(p => p.Crossing && !p.IsStation, 15f);
+            float city = Find(p => p.Kind == WorldChunkKind.City && !p.DenseLowRise, 20f);
+            float dense = Find(p => p.Kind == WorldChunkKind.City && p.DenseLowRise, 20f);
+            float terminal = Find(p => p.IsStation && p.Station == StationStyle.Terminal, WorldPlanner.PlatformCentre + WorldPlanner.StopOffsetPastPlatformCentre - 80f);
+            float halt = Find(p => p.IsStation && p.Station == StationStyle.Halt, WorldPlanner.PlatformCentre + WorldPlanner.StopOffsetPastPlatformCentre - 60f);
+            float townStation = Find(p => p.IsStation && p.Station == StationStyle.Town, WorldPlanner.PlatformCentre + WorldPlanner.StopOffsetPastPlatformCentre - 60f);
+            (string file, float distance, bool lights, float time)[] extra =
+            {
+                ("15-crossing-queue.png", crossing, false, noon),
+                ("16-meeting-train.png", Find(p => p.Kind == WorldChunkKind.Meadow || p.Kind == WorldChunkKind.Field, 10f), false, noon),
+                ("17-city-night.png", city, true, midnight),
+                ("18-dense-city.png", dense, false, noon),
+                ("19-dense-city-night.png", dense, true, midnight),
+                ("20-terminal.png", terminal, false, noon),
+                ("21-terminal-night.png", terminal, true, midnight),
+                ("22-halt-night.png", halt, true, midnight),
+                ("23-town-station.png", townStation, false, noon)
+            };
+            foreach ((string file, float distance, bool lights, float time) in extra)
+            {
+                if (cab != null) cab.ConfigureDistancePreview(distance, lights, time);
+                yield return null;
+                view.Streamed.Traffic.PreviewTraffic(distance);
+                if (file.StartsWith("16")) view.Streamed.Traffic.ForceMeetingTrain(distance, 170f);
+                yield return new WaitForSecondsRealtime(file.StartsWith("15") ? 2.5f : 0.9f);
+                yield return Capture(file, 1600, 1000);
+                Debug.Log("SMOKE_SHOT " + file + " d=" + distance.ToString("0") + " kind=" + planner.At(distance).Kind +
+                          " cars=" + view.Streamed.Traffic.CarCount + " lights=" + view.Streamed.EnabledLightCount);
+            }
             (string file, float distance, bool lights, float time)[] shots =
             {
                 ("01-start.png", 25f, false, noon),

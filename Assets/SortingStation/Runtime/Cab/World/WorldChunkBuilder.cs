@@ -190,6 +190,8 @@ namespace SortingStation
                 bool tunnel = planner.TryGetTunnel(d, out _, out _) || planner.TryGetTunnel(d - 8f, out _, out _) || planner.TryGetTunnel(d + 8f, out _, out _);
                 if (tunnel) continue;
                 bool onPlatform = station && Mathf.Abs(d - stationCentre) < 30f;
+                // Inside a terminal's train shed the wires hang from the arches.
+                if (station && plan.Station == StationStyle.Terminal && Mathf.Abs(d - stationCentre) < 54f) continue;
                 Quaternion r = R(d);
                 float leftX = onPlatform ? -7.9f : -3.3f;
                 float rightX = SecondTrackOffset + 3.3f;
@@ -318,6 +320,7 @@ namespace SortingStation
             p += terrain.Weight(d, WorldChunkKind.Water) * (clump > 0.55f ? 0.4f : 0.04f);
             p += terrain.Weight(d, WorldChunkKind.Village) * (ax > 18f && ax < 90f ? 0.12f : 0.03f);
             p += terrain.Weight(d, WorldChunkKind.Town) * 0.03f;
+            p += terrain.Weight(d, WorldChunkKind.City) * 0.004f;
             p += terrain.Weight(d, WorldChunkKind.Industrial) * 0.015f;
             p += terrain.Weight(d, WorldChunkKind.Foothills) * (ax < 20f ? 0.08f : 0.4f);
             p += terrain.Weight(d, WorldChunkKind.Tunnel) * 0.3f;

@@ -13,6 +13,15 @@ namespace SortingStation
         private static readonly Dictionary<string, Material> Cache = new Dictionary<string, Material>();
         private static readonly List<Material> NightWindows = new List<Material>();
         private static readonly List<Material> Lamps = new List<Material>();
+        private static readonly List<(Material material, Color colour, float day)> Glows = new List<(Material, Color, float)>();
+        private static Material lightPool;
+        private static Texture2D poolTexture;
+
+        public static readonly Color[] NeonColours =
+        {
+            new Color(1f, 0.18f, 0.55f), new Color(0.15f, 0.85f, 1f), new Color(1f, 0.82f, 0.15f),
+            new Color(0.35f, 1f, 0.35f), new Color(1f, 0.35f, 0.12f), new Color(0.7f, 0.35f, 1f), new Color(1f, 1f, 1f)
+        };
         private static Material terrain;
         private static Texture2D macro;
         private static float night = -1f;
@@ -88,9 +97,67 @@ namespace SortingStation
                 Material material = CabPbrMaterials.Emissive("WorldLampGlow", new Color(0.95f, 0.92f, 0.82f), Color.black);
                 Cache["lamp"] = material;
                 Lamps.Add(material);
+                ApplyNight();
                 return material;
             }
         }
+
+        /// <summary>Self-lit colour (neon tubes, shop windows, car lights): faint by day, bright at night.</summary>
+        public static Material Glow(string name, Color colour, float dayLevel = 0.25f)
+        {
+            string key = "glow|" + name + "|" + ColorUtility.ToHtmlStringRGB(colour);
+            if (Cache.TryGetValue(key, out Material cached) && cached != null) return cached;
+            Material material = CabPbrMaterials.Emissive("WorldGlow_" + name, colour * 0.6f, colour * dayLevel);
+            Cache[key] = material;
+            Glows.Add((material, colour, dayLevel));
+            if (night >= 0f) material.SetColor("_EmissionColor", colour * Mathf.Lerp(dayLevel, 2.2f, Lit(night)));
+            return material;
+        }
+
+        public static Material Neon(int index) => Glow("Neon" + index, NeonColours[Mathf.Abs(index) % NeonColours.Length], 0.35f);
+        public static Material ShopWindow => Glow("ShopWindow", new Color(1f, 0.86f, 0.62f), 0.12f);
+        public static Material Headlamp => Glow("Headlamp", new Color(1f, 0.96f, 0.85f), 0.2f);
+        public static Material TailLamp => Glow("TailLamp", new Color(1f, 0.08f, 0.05f), 0.3f);
+
+        /// <summary>
+        /// A soft pool of lamplight on the ground: an additive decal that costs nothing like a
+        /// real light, so streets and platforms can have dozens of lit lamps at night.
+        /// </summary>
+        public static Material LightPool
+        {
+            get
+            {
+                if (lightPool != null) return lightPool;
+                if (poolTexture == null)
+                {
+                    const int size = 64;
+                    poolTexture = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "LightPool", wrapMode = TextureWrapMode.Clamp };
+                    Color[] pixels = new Color[size * size];
+                    for (int y = 0; y < size; y++)
+                        for (int x = 0; x < size; x++)
+                        {
+                            float dx = (x + 0.5f) / size * 2f - 1f, dy = (y + 0.5f) / size * 2f - 1f;
+                            float f = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy));
+                            f = f * f * (3f - 2f * f);
+                            pixels[y * size + x] = new Color(f, f, f, f);
+                        }
+                    poolTexture.SetPixels(pixels);
+                    poolTexture.Apply(true, false);
+                }
+                lightPool = new Material(CabShaders.Additive) { name = "WorldLightPool", mainTexture = poolTexture };
+                SetTint(lightPool, Color.black);
+                ApplyNight();
+                return lightPool;
+            }
+        }
+
+        private static void SetTint(Material material, Color colour)
+        {
+            if (material.HasProperty("_TintColor")) material.SetColor("_TintColor", colour);
+            material.color = colour;
+        }
+
+        private static float Lit(float amount) => Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.8f, amount));
 
         /// <summary>Town facade: a painted panel wall with a grid of windows; some light up at night.</summary>
         public static Material Facade(int variant)
@@ -110,6 +177,7 @@ namespace SortingStation
             material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             Cache[key] = material;
             NightWindows.Add(material);
+            ApplyNight();
             return material;
         }
 
@@ -126,7 +194,7 @@ namespace SortingStation
             const int cellW = size / 6;
             const int cellH = size / 4;
             bool[] lit = new bool[24];
-            for (int i = 0; i < lit.Length; i++) lit[i] = random.NextDouble() < 0.38;
+            for (int i = 0; i < lit.Length; i++) lit[i] = random.NextDouble() < 0.5;
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
                 {
@@ -186,9 +254,19 @@ namespace SortingStation
         {
             if (Mathf.Abs(amount - night) < 0.02f) return;
             night = amount;
-            float lit = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.8f, amount));
+            ApplyNight();
+        }
+
+        /// <summary>Applies the current night level to every glowing material (also ones created later).</summary>
+        private static void ApplyNight()
+        {
+            float amount = Mathf.Max(0f, night);
+            float lit = Lit(amount);
+            for (int i = 0; i < Glows.Count; i++)
+                if (Glows[i].material != null) Glows[i].material.SetColor("_EmissionColor", Glows[i].colour * Mathf.Lerp(Glows[i].day, 2.2f, lit));
+            if (lightPool != null) SetTint(lightPool, new Color(0.55f, 0.42f, 0.26f, 0.5f) * lit);
             for (int i = 0; i < NightWindows.Count; i++)
-                if (NightWindows[i] != null) NightWindows[i].SetColor("_EmissionColor", Color.white * (lit * 1.5f));
+                if (NightWindows[i] != null) NightWindows[i].SetColor("_EmissionColor", Color.white * (lit * 2.6f));
             for (int i = 0; i < Lamps.Count; i++)
                 if (Lamps[i] != null) Lamps[i].SetColor("_EmissionColor", new Color(1f, 0.82f, 0.52f) * (0.08f + lit * 1.6f));
         }

@@ -15,6 +15,14 @@ namespace SortingStation
         public bool Complete;
         public readonly List<Light> Lamps = new List<Light>();
         public readonly List<Light> TunnelLights = new List<Light>();
+        /// <summary>Things that only appear after dark (the station attendant with the lantern).</summary>
+        public readonly List<GameObject> NightOnly = new List<GameObject>();
+        public readonly List<Transform> CrossingArms = new List<Transform>();
+        public readonly List<Quaternion> CrossingArmRest = new List<Quaternion>();
+        public readonly List<Renderer> CrossingLamps = new List<Renderer>();
+        public readonly List<Light> CrossingLights = new List<Light>();
+        /// <summary>1 = barriers up, 0 = down.</summary>
+        public float CrossingAngle = 1f;
         public readonly List<TextMesh> Signs = new List<TextMesh>();
         public readonly List<Transform> SignBoards = new List<Transform>();
         public readonly List<Cab3DPassengerAgent> Passengers = new List<Cab3DPassengerAgent>();

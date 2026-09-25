@@ -23,6 +23,8 @@ namespace SortingStation
 
         public Material Skybox => skybox;
         public Color HorizonColor { get; private set; } = DayHorizon;
+        /// <summary>0 in the country, 1 in a big city: street light glows in the night haze.</summary>
+        public float Urban { get; set; }
 
         public CabSkyAndFog(Camera camera, Light sun, float farClipDistance)
         {
@@ -49,7 +51,7 @@ namespace SortingStation
             float day = Mathf.Clamp01(1f - night01);
             // Low sun warms the horizon; full night fades it to deep blue.
             Color horizon = Color.Lerp(SunsetHorizon, DayHorizon, Mathf.SmoothStep(0f, 1f, sunArc * 2.2f));
-            horizon = Color.Lerp(NightHorizon, horizon, day);
+            horizon = Color.Lerp(Color.Lerp(NightHorizon, new Color(0.17f, 0.12f, 0.09f), Urban), horizon, day);
             if (badWeather) horizon = Color.Lerp(horizon, StormHorizon * Mathf.Lerp(0.18f, 1f, day), 0.6f);
             HorizonColor = horizon;
 
@@ -70,7 +72,8 @@ namespace SortingStation
             float clearDensity = 1.5f / Mathf.Max(100f, farClip);
             RenderSettings.fogDensity = Mathf.Lerp(badWeather ? clearDensity * 2.8f : clearDensity, 0.02f, tunnelBlend);
 
-            Color ambient = Color.Lerp(NightAmbient, DayAmbient, day) * (badWeather ? 0.82f : 1f);
+            Color nightAmbient = Color.Lerp(NightAmbient, new Color(0.12f, 0.11f, 0.11f), Urban);
+            Color ambient = Color.Lerp(nightAmbient, DayAmbient, day) * (badWeather ? 0.82f : 1f);
             Color finalAmbient = Color.Lerp(ambient, TunnelDark * 1.2f, tunnelBlend);
             RenderSettings.ambientLight = finalAmbient;
             // URP lights with the ambient probe and reflects the default reflection cubemap; both

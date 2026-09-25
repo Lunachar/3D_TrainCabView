@@ -14,7 +14,17 @@ namespace SortingStation
         Industrial,
         Foothills,
         Tunnel,
-        Water
+        Water,
+        City
+    }
+
+    /// <summary>How grand a station is: a bare halt in the fields up to a city terminal with a train shed.</summary>
+    public enum StationStyle
+    {
+        Halt,
+        Village,
+        Town,
+        Terminal
     }
 
     public struct WorldChunkPlan
@@ -26,6 +36,12 @@ namespace SortingStation
         /// <summary>Station number along the journey (names come from CabStationNetwork), or -1.</summary>
         public int StationNumber;
         public bool Crossing;
+        public StationStyle Station;
+        /// <summary>A road runs beside the line on this side (left / right of the track).</summary>
+        public bool RoadLeft;
+        public bool RoadRight;
+        /// <summary>City chunks: small houses packed right up to the line instead of tall blocks.</summary>
+        public bool DenseLowRise;
         /// <summary>True for the first and last tunnel chunk: they hold the portals.</summary>
         public bool TunnelEntrance;
         public bool TunnelExit;
@@ -134,6 +150,7 @@ namespace SortingStation
                 case WorldChunkKind.Foothills: return "Предгорья";
                 case WorldChunkKind.Tunnel: return "Тоннель";
                 case WorldChunkKind.Water: return "Река";
+                case WorldChunkKind.City: return "Большой город";
                 default: return "Луга";
             }
         }
@@ -167,6 +184,7 @@ namespace SortingStation
                 case WorldChunkKind.Town: AddRun(kind, 2 + random.Next(0, 2)); break;
                 case WorldChunkKind.Industrial: AddRun(kind, 1 + random.Next(0, 2)); break;
                 case WorldChunkKind.Water: AddRun(kind, 1); break;
+                case WorldChunkKind.City: AddRun(kind, 4 + random.Next(0, 3)); break;
                 default: AddRun(kind, 1 + random.Next(0, 3)); break;
             }
         }
@@ -183,7 +201,8 @@ namespace SortingStation
                 (WorldChunkKind.Town, stationSoon ? 1.2f : 0.3f, 12),
                 (WorldChunkKind.Industrial, lastRun == WorldChunkKind.Town ? 1.4f : 0.25f, 10),
                 (WorldChunkKind.Tunnel, 0.45f, 14),
-                (WorldChunkKind.Water, 0.4f, 8)
+                (WorldChunkKind.Water, 0.4f, 8),
+                (WorldChunkKind.City, stationSoon ? 0.7f : 0.2f, 24)
             };
             float total = 0f;
             for (int i = 0; i < options.Length; i++)
@@ -202,7 +221,8 @@ namespace SortingStation
         {
             if (kind == lastRun) return false;
             // Mountains need open country around them, not a town next door.
-            if (kind == WorldChunkKind.Tunnel && (lastRun == WorldChunkKind.Town || lastRun == WorldChunkKind.Industrial)) return false;
+            if (kind == WorldChunkKind.Tunnel && (lastRun == WorldChunkKind.Town || lastRun == WorldChunkKind.Industrial || lastRun == WorldChunkKind.City)) return false;
+            if (kind == WorldChunkKind.City && lastRun == WorldChunkKind.Town) return false;
             return !lastRunEnd.TryGetValue(kind, out int end) || next - end >= gap;
         }
 
@@ -211,9 +231,18 @@ namespace SortingStation
             int first = plans.Count;
             // Settlements get their station on the second chunk, so the chunk before it can
             // straighten the line first.
-            bool settlement = kind == WorldChunkKind.Village || kind == WorldChunkKind.Town;
+            bool settlement = kind == WorldChunkKind.Village || kind == WorldChunkKind.Town || kind == WorldChunkKind.City;
             int stationAt = -1;
-            if (settlement && length >= 2 && first + 1 - lastStationChunk >= MinimumChunksBetweenStations) stationAt = first + 1;
+            // A big city always has its terminal in the middle; smaller places respect the spacing.
+            if (kind == WorldChunkKind.City) stationAt = first + length / 2;
+            else if (settlement && length >= 2 && first + 1 - lastStationChunk >= MinimumChunksBetweenStations) stationAt = first + 1;
+            // Roads: settlements always have one, open country often, never in the mountains or at rivers.
+            bool mountain = kind == WorldChunkKind.Foothills || kind == WorldChunkKind.Tunnel || kind == WorldChunkKind.Water;
+            float roadChance = settlement || kind == WorldChunkKind.Industrial ? 1f : kind == WorldChunkKind.Forest ? 0.3f : 0.55f;
+            bool road = !mountain && random.NextDouble() < roadChance;
+            bool roadRight = random.NextDouble() < 0.5;
+            bool bothSides = kind == WorldChunkKind.City || (kind == WorldChunkKind.Town && random.NextDouble() < 0.5);
+            bool dense = kind == WorldChunkKind.City && random.NextDouble() < 0.5;
             for (int i = 0; i < length; i++)
             {
                 int index = first + i;
@@ -232,7 +261,13 @@ namespace SortingStation
                 {
                     plan.StationNumber = ++stationCount;
                     lastStationChunk = index;
+                    plan.Station = kind == WorldChunkKind.City ? StationStyle.Terminal
+                        : kind == WorldChunkKind.Town ? StationStyle.Town
+                        : random.NextDouble() < 0.4 ? StationStyle.Halt : StationStyle.Village;
                 }
+                plan.RoadLeft = road && (bothSides || !roadRight);
+                plan.RoadRight = road && (bothSides || roadRight);
+                plan.DenseLowRise = dense;
                 bool crossingCountry = kind == WorldChunkKind.Meadow || kind == WorldChunkKind.Field || kind == WorldChunkKind.Village;
                 if (crossingCountry && index != stationAt && index + 1 != stationAt && index - lastCrossingChunk >= 5 && random.NextDouble() < 0.35)
                 {

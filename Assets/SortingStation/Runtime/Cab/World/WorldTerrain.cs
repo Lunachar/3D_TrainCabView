@@ -72,6 +72,7 @@ namespace SortingStation
                 case WorldChunkKind.Industrial: return new Profile { Rugged = 1.2f, FarRise = 10f, Paving = 0.75f, Soil = 0.2f };
                 case WorldChunkKind.Foothills: return new Profile { Rugged = 16f, FarRise = 95f, Mountain = 0.45f, Forest = 0.45f };
                 case WorldChunkKind.Tunnel: return new Profile { Rugged = 22f, FarRise = 150f, Mountain = 1f, Forest = 0.3f };
+                case WorldChunkKind.City: return new Profile { Rugged = 0.5f, FarRise = 8f, Paving = 0.95f };
                 case WorldChunkKind.Water: return new Profile { Rugged = 4f, FarRise = 22f, Crop = 0.1f };
                 default: return new Profile { Rugged = 7f, FarRise = 26f, Crop = 0.12f };
             }

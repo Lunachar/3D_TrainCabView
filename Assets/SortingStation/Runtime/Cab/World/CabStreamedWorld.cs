@@ -42,6 +42,9 @@ namespace SortingStation
         private float nextLightSort;
         private WorldChunk stationChunk;
         private CabTrainConsist consist;
+        private WorldTraffic traffic;
+        private float trafficDistance;
+        public WorldTraffic Traffic => traffic;
 
         public event Action<RouteSegmentDefinition> SegmentChanged;
         public float Distance { get; private set; }
@@ -77,6 +80,14 @@ namespace SortingStation
             routeRoot = new GameObject("StreamedWorld").transform;
             routeRoot.SetParent(parent, false);
             currentKind = planner.Get(0).Kind;
+            traffic = new WorldTraffic(this, seed, aheadChunks > 5 ? 14 : 9);
+        }
+
+        /// <summary>Moves cars, barriers and trains on the other track.</summary>
+        public void UpdateTraffic(float deltaTime, bool night)
+        {
+            traffic?.Update(deltaTime, Distance, trafficDistance, night);
+            trafficDistance = Distance;
         }
 
         /// <summary>Season and density for new chunks; rebuilds what is already there.</summary>
@@ -114,6 +125,8 @@ namespace SortingStation
         public void LoadAll()
         {
             Stream(true);
+            traffic?.Reset(Distance);
+            trafficDistance = Distance;
         }
 
         // ---- Streaming --------------------------------------------------------------------------
@@ -254,6 +267,7 @@ namespace SortingStation
                 WorldChunkKind.Forest => RouteSegmentType.Forest,
                 WorldChunkKind.Village => RouteSegmentType.Village,
                 WorldChunkKind.Town => RouteSegmentType.Town,
+                WorldChunkKind.City => RouteSegmentType.Town,
                 WorldChunkKind.Industrial => RouteSegmentType.Road,
                 WorldChunkKind.Tunnel => RouteSegmentType.MountainTunnel,
                 WorldChunkKind.Water => RouteSegmentType.Water,
@@ -268,6 +282,22 @@ namespace SortingStation
         }
 
         public float TunnelBlend => planner.TunnelBlend(Distance);
+
+        /// <summary>0 in open country, 1 in a big city: towns light up the night sky.</summary>
+        public float Urban
+        {
+            get
+            {
+                float sum = 0f;
+                for (int i = -2; i <= 4; i++)
+                {
+                    float d = Mathf.Max(0f, Distance + i * 60f);
+                    sum += terrain.Weight(d, WorldChunkKind.City) + 0.55f * terrain.Weight(d, WorldChunkKind.Town) +
+                           0.3f * terrain.Weight(d, WorldChunkKind.Industrial) + 0.15f * terrain.Weight(d, WorldChunkKind.Village);
+                }
+                return Mathf.Clamp01(sum / 7f);
+            }
+        }
 
         /// <summary>Distance of the next stopping point at or after <paramref name="distance"/>, and its station.</summary>
         public float NextStopAfter(float distance, out CabStationDefinition station)
@@ -344,12 +374,13 @@ namespace SortingStation
             lightScratch.Clear();
             foreach (WorldChunk chunk in chunks.Values)
             {
+                foreach (GameObject item in chunk.NightOnly) if (item != null && item.activeSelf != night) item.SetActive(night);
                 SetLightsOn(chunk.Lamps, false);
                 SetLightsOn(chunk.TunnelLights, false);
                 if (night) lightScratch.AddRange(chunk.Lamps);
                 if (inTunnel) lightScratch.AddRange(chunk.TunnelLights);
             }
-            lightScratch.RemoveAll(light => light == null);
+            lightScratch.RemoveAll(light => light == null || !light.gameObject.activeInHierarchy);
             lightScratch.Sort((a, b) => (a.transform.position - eye).sqrMagnitude.CompareTo((b.transform.position - eye).sqrMagnitude));
             for (int i = 0; i < lightScratch.Count && i < lightBudget; i++) lightScratch[i].enabled = true;
         }
@@ -375,6 +406,7 @@ namespace SortingStation
 
         public void Dispose()
         {
+            traffic?.Dispose();
             StopBuilding();
             foreach (WorldChunk chunk in chunks.Values) chunk.Destroy();
             chunks.Clear();
