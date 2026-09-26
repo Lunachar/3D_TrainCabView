@@ -79,6 +79,7 @@ namespace SortingStation
             BuildCeiling(root.transform, p);
             BuildKeychain(root.transform, p);
             BuildSeat(root.transform, p);
+            BuildCabDetails(root.transform, p);
             SetLayerRecursively(root, ControlLayer);
             return root;
         }
@@ -367,6 +368,112 @@ namespace SortingStation
             for (int side = -1; side <= 1; side += 2)
                 armrests.AddChamferBox(new Vector3(side * 0.34f, -0.50f, -0.02f), new Vector3(0.08f, 0.06f, 0.42f), 0.02f, Quaternion.identity);
             MeshPart(seat, "SeatArmrests", armrests, p.Leather);
+        }
+
+        /// <summary>
+        /// What the driver sees when looking aside: the seats, the side doors and sliding
+        /// windows, wall panels with breakers and the speed recorder, the extinguisher, first-aid
+        /// kit and timetable, a jacket on its hook, the door to the engine room, vents and cables.
+        /// </summary>
+        private static void BuildCabDetails(Transform root, Palette p)
+        {
+            Transform details = Group(root, "CabDetails");
+            Material white = CabPbrMaterials.Plain("CabWhiteBox", new Color(0.92f, 0.92f, 0.90f), 0.4f);
+            Material paper = CabPbrMaterials.Plain("CabPaper", new Color(0.95f, 0.94f, 0.88f), 0.1f);
+            Material jacket = CabPbrMaterials.Get("Fabric030", new Color(0.95f, 0.45f, 0.08f), 0.3f);
+            Material wood = CabPbrMaterials.Plain("CabClipboard", new Color(0.45f, 0.3f, 0.18f), 0.3f);
+
+            // Seat back and headrest for the driver; a second seat for the assistant.
+            CabMeshBuilder seat = new CabMeshBuilder(0.5f);
+            seat.AddChamferBox(new Vector3(0f, -0.35f, -0.37f), new Vector3(0.54f, 0.62f, 0.12f), 0.04f, Quaternion.Euler(-10f, 0f, 0f));
+            seat.AddChamferBox(new Vector3(0f, 0.05f, -0.42f), new Vector3(0.32f, 0.2f, 0.1f), 0.04f, Quaternion.Euler(-10f, 0f, 0f));
+            seat.AddChamferBox(new Vector3(0.95f, -0.72f, -0.25f), new Vector3(0.5f, 0.11f, 0.48f), 0.04f, Quaternion.identity);
+            seat.AddChamferBox(new Vector3(0.95f, -0.38f, -0.52f), new Vector3(0.5f, 0.6f, 0.11f), 0.04f, Quaternion.Euler(-10f, 0f, 0f));
+            MeshPart(details, "Seats", seat, p.Seat);
+            CabMeshBuilder seatFrames = new CabMeshBuilder(0.3f);
+            seatFrames.AddCylinder(new Vector3(0f, -0.99f, -0.08f), 0.05f, 0.44f, 12, Quaternion.identity);
+            seatFrames.AddCylinder(new Vector3(0.95f, -0.99f, -0.25f), 0.05f, 0.44f, 12, Quaternion.identity);
+            seatFrames.AddChamferBox(new Vector3(0f, -1.2f, -0.08f), new Vector3(0.5f, 0.03f, 0.5f), 0.01f, Quaternion.identity);
+            seatFrames.AddChamferBox(new Vector3(0.95f, -1.2f, -0.25f), new Vector3(0.5f, 0.03f, 0.5f), 0.01f, Quaternion.identity);
+            MeshPart(details, "SeatFrames", seatFrames, p.DarkMetal);
+
+            CabMeshBuilder panels = new CabMeshBuilder(0.4f);
+            CabMeshBuilder black = new CabMeshBuilder(0.2f);
+            CabMeshBuilder steel = new CabMeshBuilder(0.3f);
+            CabMeshBuilder labels = new CabMeshBuilder(0.2f);
+            CabMeshBuilder glass = new CabMeshBuilder();
+            for (int side = -1; side <= 1; side += 2)
+            {
+                float wall = side * (HalfWidth - 0.035f);
+                // Side door in the rear part of each wall: panel, window, handle and a grab rail.
+                panels.AddChamferBox(new Vector3(wall - side * 0.01f, -0.28f, -0.72f), new Vector3(0.03f, 1.8f, 0.7f), 0.01f, Quaternion.identity);
+                glass.AddBox(new Vector3(wall - side * 0.03f, 0.18f, -0.72f), new Vector3(0.01f, 0.36f, 0.42f), Quaternion.identity);
+                // A rubber frame around the door window (four bars, the glass stays clear).
+                foreach (float dy in new[] { -0.2f, 0.2f })
+                    black.AddBox(new Vector3(wall - side * 0.03f, 0.18f + dy, -0.72f), new Vector3(0.02f, 0.03f, 0.46f), Quaternion.identity);
+                foreach (float dz in new[] { -0.22f, 0.22f })
+                    black.AddBox(new Vector3(wall - side * 0.03f, 0.18f, -0.72f + dz), new Vector3(0.02f, 0.4f, 0.03f), Quaternion.identity);
+                steel.AddChamferBox(new Vector3(wall - side * 0.06f, -0.3f, -0.46f), new Vector3(0.03f, 0.03f, 0.16f), 0.01f, Quaternion.identity);
+                steel.AddCylinder(new Vector3(wall - side * 0.07f, -0.2f, -1.02f), 0.016f, 0.9f, 10, Quaternion.identity);
+                // Sliding window: a centre frame and a latch.
+                black.AddChamferBox(new Vector3(wall - side * 0.02f, 0.06f, 0.43f), new Vector3(0.03f, 0.74f, 0.04f), 0.008f, Quaternion.identity);
+                black.AddChamferBox(new Vector3(wall - side * 0.02f, 0.43f, 0.43f), new Vector3(0.03f, 0.03f, 1.56f), 0.008f, Quaternion.identity);
+                steel.AddChamferBox(new Vector3(wall - side * 0.045f, -0.1f, 0.5f), new Vector3(0.02f, 0.06f, 0.03f), 0.005f, Quaternion.identity);
+                // A roller blind at the top of the side window.
+                panels.AddCylinder(new Vector3(wall - side * 0.06f, 0.46f, 0.43f), 0.025f, 1.5f, 10, Quaternion.Euler(90f, 0f, 0f));
+                // Heater under the window: fins behind a grille.
+                for (int fin = 0; fin < 14; fin++)
+                    black.AddBox(new Vector3(wall - side * 0.05f, -0.9f, 0.05f + fin * 0.05f), new Vector3(0.05f, 0.22f, 0.012f), Quaternion.identity);
+                // Cable conduit along the top of the wall.
+                steel.AddCylinder(new Vector3(wall - side * 0.05f, 0.58f, 0.1f), 0.02f, 2.6f, 8, Quaternion.Euler(90f, 0f, 0f));
+            }
+            // Left wall: breaker panel and the speed recorder box.
+            panels.AddChamferBox(new Vector3(-HalfWidth + 0.06f, -0.52f, 0.62f), new Vector3(0.06f, 0.38f, 0.62f), 0.01f, Quaternion.identity);
+            for (int row = 0; row < 3; row++)
+                for (int col = 0; col < 8; col++)
+                {
+                    Vector3 c = new Vector3(-HalfWidth + 0.1f, -0.4f - row * 0.1f, 0.38f + col * 0.07f);
+                    black.AddBox(c, new Vector3(0.025f, 0.06f, 0.035f), Quaternion.identity);
+                    labels.AddBox(c + new Vector3(0.014f, 0.012f, 0f), new Vector3(0.006f, 0.022f, 0.014f), Quaternion.identity);
+                }
+            black.AddChamferBox(new Vector3(-HalfWidth + 0.1f, -0.66f, -0.2f), new Vector3(0.12f, 0.26f, 0.24f), 0.02f, Quaternion.identity);
+            labels.AddChamferBox(new Vector3(-HalfWidth + 0.165f, -0.63f, -0.2f), new Vector3(0.01f, 0.12f, 0.16f), 0.004f, Quaternion.identity);
+            // Timetable on a clipboard beside the left window.
+            MeshPart(details, "ClipboardBoard", Single(new Vector3(-HalfWidth + 0.08f, -0.5f, 1.02f), new Vector3(0.012f, 0.3f, 0.22f)), wood);
+            MeshPart(details, "Timetable", Single(new Vector3(-HalfWidth + 0.088f, -0.51f, 1.02f), new Vector3(0.006f, 0.26f, 0.19f)), paper);
+            // Right side: extinguisher, first-aid box.
+            CabMeshBuilder red = new CabMeshBuilder(0.2f);
+            red.AddCylinder(new Vector3(HalfWidth - 0.12f, -0.9f, -0.98f), 0.07f, 0.5f, 14, Quaternion.identity);
+            red.AddCylinder(new Vector3(HalfWidth - 0.12f, -0.6f, -0.98f), 0.025f, 0.1f, 8, Quaternion.identity);
+            MeshPart(details, "Extinguisher", red, p.Red);
+            MeshPart(details, "FirstAidBox", Single(new Vector3(0.6f, 0.2f, RearZ + 0.07f), new Vector3(0.3f, 0.22f, 0.1f)), white);
+            MeshPart(details, "FirstAidCross", Single(new Vector3(0.6f, 0.2f, RearZ + 0.125f), new Vector3(0.1f, 0.03f, 0.005f)), p.Red);
+            MeshPart(details, "FirstAidCross2", Single(new Vector3(0.6f, 0.2f, RearZ + 0.125f), new Vector3(0.03f, 0.1f, 0.005f)), p.Red);
+            // Rear wall: the door to the engine room with a small window, a coat hook with a jacket.
+            panels.AddChamferBox(new Vector3(-0.35f, -0.28f, RearZ + 0.04f), new Vector3(0.72f, 1.8f, 0.03f), 0.01f, Quaternion.identity);
+            glass.AddBox(new Vector3(-0.35f, 0.2f, RearZ + 0.06f), new Vector3(0.3f, 0.3f, 0.01f), Quaternion.identity);
+            steel.AddChamferBox(new Vector3(-0.05f, -0.3f, RearZ + 0.08f), new Vector3(0.03f, 0.16f, 0.03f), 0.01f, Quaternion.identity);
+            steel.AddCylinder(new Vector3(0.25f, 0.3f, RearZ + 0.08f), 0.012f, 0.1f, 8, Quaternion.Euler(90f, 0f, 0f));
+            CabMeshBuilder coat = new CabMeshBuilder(0.4f);
+            coat.AddChamferBox(new Vector3(0.25f, -0.05f, RearZ + 0.13f), new Vector3(0.42f, 0.62f, 0.1f), 0.05f, Quaternion.Euler(0f, 0f, 3f));
+            coat.AddChamferBox(new Vector3(0.25f, 0.24f, RearZ + 0.12f), new Vector3(0.26f, 0.08f, 0.09f), 0.03f, Quaternion.identity);
+            MeshPart(details, "HangingJacket", coat, jacket);
+            // Ceiling vents.
+            for (int v = 0; v < 2; v++)
+                for (int slat = 0; slat < 6; slat++)
+                    black.AddBox(new Vector3(-0.3f + v * 0.6f, CeilingY - 0.01f, -0.55f + slat * 0.04f), new Vector3(0.3f, 0.015f, 0.012f), Quaternion.identity);
+            MeshPart(details, "WallPanels", panels, p.Console);
+            MeshPart(details, "BlackParts", black, p.Black);
+            MeshPart(details, "SteelParts", steel, p.Steel);
+            MeshPart(details, "Labels", labels, p.Label);
+            MeshPart(details, "DoorWindows", glass, p.Glass, castShadows: false);
+        }
+
+        private static CabMeshBuilder Single(Vector3 centre, Vector3 size)
+        {
+            CabMeshBuilder builder = new CabMeshBuilder(0.2f);
+            builder.AddChamferBox(centre, size, Mathf.Min(0.004f, Mathf.Min(size.x, Mathf.Min(size.y, size.z)) * 0.3f), Quaternion.identity);
+            return builder;
         }
 
         private static void CreateRocker(Transform parent, CabControlAction action, string indicatorName, string caption,

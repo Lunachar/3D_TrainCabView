@@ -320,9 +320,9 @@ namespace SortingStation
             {
                 float a = i / 4f * Mathf.PI * 2f;
                 Vector3 spot = fire + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 1.8f;
-                GameObject person = CabWorld3DPrototypeFactory.CreatePassenger(camp, "Camper_" + i, spot, Color.HSVToRGB((float)random.NextDouble(), 0.6f, 0.5f), false, i % 2 == 0, false, out _, out _, out _);
-                person.transform.localRotation = Quaternion.LookRotation(new Vector3(-Mathf.Cos(a), 0f, -Mathf.Sin(a)), Vector3.up);
-                TrackMaterials(person);
+                PersonAnimator person = SpawnPerson(camp, "Camper_" + i, spot, Quaternion.LookRotation(new Vector3(-Mathf.Cos(a), 0f, -Mathf.Sin(a)), Vector3.up), random);
+                person.AllowStrolling = false;
+                if (i % 2 == 0) person.Sit(true);
             }
             Material tent = WorldMaterials.Plain("TentGreen", new Color(0.2f, 0.45f, 0.25f), 0.2f);
             Vector3 t = fire + new Vector3(4f, 0f, 2f);

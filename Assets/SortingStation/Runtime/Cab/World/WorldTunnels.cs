@@ -301,28 +301,26 @@ namespace SortingStation
             }
         }
 
-        /// <summary>A gnome: a small passenger with a long white beard and a pointed red hat.</summary>
+        /// <summary>A gnome: a small, stocky person with a long white beard and a pointed red hat.</summary>
         private GameObject CreateGnome(Transform parent, string name, Vector3 position)
         {
-            Color coat = random.NextDouble() < 0.5 ? new Color(0.2f, 0.35f, 0.6f) : new Color(0.35f, 0.5f, 0.2f);
-            GameObject gnome = CabWorld3DPrototypeFactory.CreatePassenger(parent, name, position, coat, false, false, false, out _, out _, out _);
-            Gnomify(gnome);
-            return gnome;
+            PersonAnimator gnome = SpawnPerson(parent, name, position, Quaternion.identity, random, false, null, true);
+            gnome.StrollMin = new Vector2(position.x - 3f, position.z - 3f);
+            gnome.StrollMax = new Vector2(position.x + 3f, position.z + 3f);
+            return gnome.gameObject;
         }
 
-        /// <summary>Turns a person into a gnome: smaller, with a pointed red hat and a white beard.</summary>
-        private void Gnomify(GameObject gnome)
+        /// <summary>Hat and beard on the head bone, so they move with the head.</summary>
+        private void Gnomify(PersonAnimator gnome)
         {
-            gnome.transform.localScale = Vector3.one * 0.58f;
-            Transform head = gnome.transform.Find("Head");
-            Vector3 headPosition = head != null ? head.localPosition : new Vector3(0f, 1.73f, 0f);
+            Transform head = gnome.BoneOf(PersonFactory.Bone.Head);
+            float s = gnome.Height / 1.75f;
             WorldMesh hat = new WorldMesh(1f);
-            hat.AddCone(headPosition + Vector3.up * 0.12f, headPosition + new Vector3(0f, 0.95f, -0.12f), 0.26f, 10);
-            AttachMesh(gnome.transform, "GnomeHat", hat, WorldMaterials.Plain("GnomeHat", new Color(0.82f, 0.08f, 0.06f), 0.3f));
+            hat.AddCone(new Vector3(0f, 0.17f * s, 0f), new Vector3(0f, 0.62f * s, -0.1f * s), 0.12f * s, 10);
+            AttachMesh(head, "GnomeHat", hat, WorldMaterials.Plain("GnomeHat", new Color(0.82f, 0.08f, 0.06f), 0.3f));
             WorldMesh beard = new WorldMesh(1f);
-            beard.AddCone(headPosition + new Vector3(0f, -0.05f, 0.14f), headPosition + new Vector3(0f, -0.62f, 0.22f), 0.2f, 8);
-            AttachMesh(gnome.transform, "GnomeBeard", beard, WorldMaterials.Plain("GnomeBeard", new Color(0.95f, 0.95f, 0.92f), 0.2f));
-            TrackMaterials(gnome);
+            beard.AddCone(new Vector3(0f, 0.07f * s, 0.07f * s), new Vector3(0f, -0.3f * s, 0.12f * s), 0.09f * s, 8);
+            AttachMesh(head, "GnomeBeard", beard, WorldMaterials.Plain("GnomeBeard", new Color(0.95f, 0.95f, 0.92f), 0.2f));
         }
 
         private void AttachMesh(Transform parent, string name, WorldMesh mesh, Material material)

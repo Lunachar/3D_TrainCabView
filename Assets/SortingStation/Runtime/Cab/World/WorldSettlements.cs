@@ -159,10 +159,9 @@ namespace SortingStation
                 float s = Range(-width * 0.55f, width * 0.55f);
                 float away = Range(1.2f, 3.6f);
                 Vector3 spot = P(centre + s, wallX + towardTrack * away, ground);
-                Color coat = Color.HSVToRGB((float)random.NextDouble(), Range(0.3f, 0.7f), Range(0.2f, 0.7f));
-                GameObject person = CabWorld3DPrototypeFactory.CreatePassenger(crowd, "Onlooker_" + i, spot, coat, i % 5 == 0, false, false, out _, out _, out _);
-                person.transform.localRotation = r * Quaternion.Euler(0f, (towardTrack > 0f ? -90f : 90f) + Range(-35f, 35f), 0f);
-                TrackMaterials(person);
+                Quaternion facing = r * Quaternion.Euler(0f, (towardTrack > 0f ? -90f : 90f) + Range(-35f, 35f), 0f);
+                PersonAnimator person = SpawnPerson(crowd, "Onlooker_" + i, spot, facing, random, i % 5 == 0);
+                person.AllowStrolling = false;
             }
             Block(centre - width, centre + width, wallX + towardTrack * 4f - 1f, wallX + towardTrack * 4f + 1f);
         }
@@ -731,6 +730,28 @@ namespace SortingStation
             }
         }
 
+        /// <summary>A person of the new kind, placed in a parent's frame; their mesh is freed with the chunk.</summary>
+        private PersonAnimator SpawnPerson(Transform parent, string name, Vector3 local, Quaternion facing, System.Random rng,
+            bool child = false, Color? top = null, bool gnome = false)
+        {
+            PersonLook look = PersonLook.Random(rng, child);
+            if (top.HasValue) look.Top = top.Value;
+            if (gnome)
+            {
+                look.Height = 1.0f + (float)rng.NextDouble() * 0.15f;
+                look.Build = 0.9f;
+                look.Hair = 5;
+                look.Carry = 0;
+            }
+            PersonAnimator person = PersonFactory.Create(parent, name, local, look);
+            person.transform.localRotation = facing;
+            person.SetHome(local, facing);
+            SkinnedMeshRenderer skin = person.GetComponentInChildren<SkinnedMeshRenderer>();
+            if (skin != null && chunk != null) chunk.Meshes.Add(skin.sharedMesh);
+            if (gnome) Gnomify(person);
+            return person;
+        }
+
         private void BuildPassengers(float centre, bool terminal)
         {
             Quaternion r = R(centre);
@@ -739,60 +760,74 @@ namespace SortingStation
             frame.localPosition = P(centre, 0f, PlatformHeight);
             frame.localRotation = r;
             chunk.PlatformFrame = frame;
+            bool gnomes = plan.Station == StationStyle.Gnome;
+            float half = terminal ? 45f : WorldPlanner.PlatformLength * 0.5f;
+            StationCrowd crowd = frame.gameObject.AddComponent<StationCrowd>();
+            crowd.Configure(plan.Seed, new Vector3(PlatformEdge - 2.6f, 0f, -half - 3f), PlatformEdge, gnomes);
+            WorldChunk owner = chunk;
+            crowd.SpawnArrival = rng =>
+            {
+                PersonAnimator person = SpawnPerson(frame, "Arriving", Vector3.zero, Quaternion.identity, rng, rng.NextDouble() < 0.12, null, gnomes);
+                owner.Meshes.Add(person.GetComponentInChildren<SkinnedMeshRenderer>().sharedMesh);
+                return person;
+            };
+            chunk.Crowd = crowd;
             int count = plan.Station == StationStyle.Halt ? 3 + random.Next(0, 4)
                 : plan.Station == StationStyle.Village ? 6 + random.Next(0, 7)
                 : plan.Station == StationStyle.Town ? 10 + random.Next(0, 7)
-                : plan.Station == StationStyle.Gnome ? 5 + random.Next(0, 6) : 16 + random.Next(0, 9);
+                : gnomes ? 5 + random.Next(0, 6) : 16 + random.Next(0, 9);
+            System.Random rng2 = new System.Random(plan.Seed * 13 + 1);
             for (int i = 0; i < count; i++)
             {
-                float z = Range(-20f, 18f);
                 bool seated = i % 5 == 3;
-                Vector3 platform = new Vector3(Range(PlatformEdge - 3.6f, PlatformEdge - 1.1f), 0f, seated ? Mathf.Round(z / 8f) * 8f + 4f : z);
-                Vector3 door = new Vector3(PlatformEdge + 0.35f, 0f, z);
-                Color coat = Color.HSVToRGB((float)random.NextDouble(), Range(0.35f, 0.7f), Range(0.25f, 0.7f));
-                GameObject passenger = CabWorld3DPrototypeFactory.CreatePassenger(frame, "Passenger_" + plan.Index + "_" + i, platform, coat,
-                    i % 6 == 0, seated, i % 3 == 1, out GameObject umbrella, out Renderer coatRenderer, out Transform[] limbs);
-                passenger.transform.localRotation = Quaternion.Euler(0f, Range(40f, 140f), 0f);
-                if (plan.Station == StationStyle.Gnome) Gnomify(passenger);
-                Cab3DPassengerAgent agent = passenger.AddComponent<Cab3DPassengerAgent>();
-                agent.Configure(platform, door, umbrella, coatRenderer, limbs);
-                passenger.AddComponent<Cab3DInteractiveObject>().Configure("station passenger worker", CabInteractionReaction.Wave);
-                passenger.SetActive(false);
-                chunk.Passengers.Add(agent);
-                TrackMaterials(passenger);
+                // Small groups stand together; some sit on the benches.
+                float z = seated ? (random.Next(-1, 2) * 8f + 4f) + Range(-0.5f, 0.5f) : Range(-half + 4f, half - 6f);
+                Vector3 platform = seated ? new Vector3(PlatformEdge - PlatformWidth * 0.5f - 1.4f + 0.1f, 0f, z)
+                    : new Vector3(Range(PlatformEdge - 3.6f, PlatformEdge - 0.9f), 0f, z);
+                Quaternion facing = seated ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.Euler(0f, Range(20f, 160f), 0f);
+                PersonAnimator person = SpawnPerson(frame, "Passenger_" + plan.Index + "_" + i, platform, facing, rng2, i % 7 == 6, null, gnomes);
+                person.StrollMin = new Vector2(PlatformEdge - 3.8f, platform.z - 5f);
+                person.StrollMax = new Vector2(PlatformEdge - 0.8f, platform.z + 5f);
+                if (seated) person.Sit(true);
+                crowd.Add(person, seated);
             }
             if (!terminal) return;
             // People also wait on the island platform; they do not board this train.
             for (int i = 0; i < 8; i++)
             {
                 Vector3 spot = new Vector3(SecondTrackOffset + 1.95f + Range(1.2f, 3.8f), 0f, Range(-30f, 30f));
-                Color coat = Color.HSVToRGB((float)random.NextDouble(), Range(0.3f, 0.6f), Range(0.25f, 0.6f));
-                GameObject waiting = CabWorld3DPrototypeFactory.CreatePassenger(frame, "Waiting_" + i, spot, coat, false, false, false, out _, out _, out _);
-                waiting.transform.localRotation = Quaternion.Euler(0f, Range(0f, 360f), 0f);
-                TrackMaterials(waiting);
+                PersonAnimator person = SpawnPerson(frame, "Waiting_" + i, spot, Quaternion.Euler(0f, Range(0f, 360f), 0f), rng2);
+                person.StrollMin = new Vector2(SecondTrackOffset + 2.8f, spot.z - 6f);
+                person.StrollMax = new Vector2(SecondTrackOffset + 6.2f, spot.z + 6f);
             }
         }
 
-        /// <summary>At night the station attendant stands at the platform end where the locomotive stops, holding a lantern.</summary>
+        /// <summary>
+        /// The station attendant stands at the platform end where the locomotive stops. By day
+        /// with a yellow flag (and a wave for the driver), at night with a lantern whose beam
+        /// reaches down the platform. Between trains they stretch, stroll a few steps and look around.
+        /// </summary>
         private void BuildAttendant(float centre)
         {
             Transform frame = chunk.PlatformFrame;
             if (frame == null) return;
+            bool gnome = plan.Station == StationStyle.Gnome;
             Vector3 spot = new Vector3(PlatformEdge - 1.1f, 0f, WorldPlanner.StopOffsetPastPlatformCentre + 3.5f);
-            GameObject attendant = CabWorld3DPrototypeFactory.CreatePassenger(frame, "StationAttendant", spot, new Color(0.95f, 0.42f, 0.05f),
-                false, false, false, out _, out _, out _);
-            attendant.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            if (plan.Station == StationStyle.Gnome) Gnomify(attendant);
+            Color vest = new Color(0.95f, 0.42f, 0.05f);
+            System.Random rng = new System.Random(plan.Seed * 17 + 3);
+            Quaternion facing = Quaternion.Euler(0f, 180f, 0f);
+
+            PersonAnimator night = SpawnPerson(frame, "StationAttendant", spot, facing, rng, false, vest, gnome);
+            Attendant(night, spot);
+            Transform hand = night.BoneOf(PersonFactory.Bone.HandL);
             Transform lantern = new GameObject("Lantern").transform;
-            lantern.SetParent(attendant.transform, false);
-            lantern.localPosition = new Vector3(-0.42f, 0.95f, -0.25f);
+            lantern.SetParent(hand, false);
+            lantern.localPosition = new Vector3(0f, -0.14f, 0.03f);
             GameObject glass = GameObject.CreatePrimitive(PrimitiveType.Cube);
             glass.name = "LanternGlass";
-            Collider collider = glass.GetComponent<Collider>();
-            if (Application.isPlaying) Object.Destroy(collider);
-            else Object.DestroyImmediate(collider);
+            RemoveCollider(glass);
             glass.transform.SetParent(lantern, false);
-            glass.transform.localScale = new Vector3(0.16f, 0.22f, 0.16f);
+            glass.transform.localScale = new Vector3(0.14f, 0.2f, 0.14f);
             glass.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Glow("Lantern", new Color(1f, 0.78f, 0.35f), 0.4f);
             GameObject lightObject = new GameObject("LanternLight", typeof(Light));
             lightObject.transform.SetParent(lantern, false);
@@ -808,6 +843,7 @@ namespace SortingStation
             GameObject beamObject = new GameObject("LanternBeam", typeof(Light), typeof(MeshFilter), typeof(MeshRenderer));
             beamObject.transform.SetParent(lantern, false);
             beamObject.transform.rotation = frame.rotation * Quaternion.Euler(9f, 180f, 0f);
+            beamObject.AddComponent<KeepWorldRotation>().Configure(frame, Quaternion.Euler(9f, 180f, 0f));
             Light beam = beamObject.GetComponent<Light>();
             beam.type = LightType.Spot;
             beam.color = new Color(1f, 0.8f, 0.5f);
@@ -823,40 +859,37 @@ namespace SortingStation
             beamObject.GetComponent<MeshFilter>().sharedMesh = cone;
             beamObject.GetComponent<MeshRenderer>().sharedMaterial = LanternBeamMaterial;
             beamObject.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            attendant.AddComponent<LanternSwing>().Configure(lantern);
-            attendant.SetActive(false);
-            chunk.NightOnly.Add(attendant);
-            TrackMaterials(attendant);
+            night.gameObject.SetActive(false);
+            chunk.NightOnly.Add(night.gameObject);
 
-            // By day the attendant stands at the same spot with a yellow flag, waving now and then.
-            GameObject dayAttendant = CabWorld3DPrototypeFactory.CreatePassenger(frame, "StationAttendantDay", spot, new Color(0.95f, 0.42f, 0.05f),
-                false, false, false, out _, out _, out Transform[] limbs);
-            dayAttendant.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            if (plan.Station == StationStyle.Gnome) Gnomify(dayAttendant);
-            Transform hand = limbs != null && limbs.Length > 1 && limbs[1] != null ? limbs[1] : dayAttendant.transform;
-            // The flag hangs from the right arm, in world metres whatever the arm's scale.
-            GameObject flagRoot = new GameObject("FlagRoot");
-            flagRoot.transform.SetParent(hand, false);
-            flagRoot.transform.localPosition = new Vector3(0f, -0.9f, 0f);
-            Vector3 lossy = hand.lossyScale;
-            flagRoot.transform.localScale = new Vector3(1f / Mathf.Max(0.01f, lossy.x), 1f / Mathf.Max(0.01f, lossy.y), 1f / Mathf.Max(0.01f, lossy.z));
+            PersonAnimator day = SpawnPerson(frame, "StationAttendantDay", spot, facing, rng, false, vest, gnome);
+            Attendant(day, spot);
+            Transform flagHand = day.BoneOf(PersonFactory.Bone.HandR);
             GameObject stick = GameObject.CreatePrimitive(PrimitiveType.Cube);
             RemoveCollider(stick);
             stick.name = "FlagStick";
-            stick.transform.SetParent(flagRoot.transform, false);
-            stick.transform.localPosition = new Vector3(0f, -0.25f, 0f);
-            stick.transform.localScale = new Vector3(0.03f, 0.6f, 0.03f);
+            stick.transform.SetParent(flagHand, false);
+            stick.transform.localPosition = new Vector3(0f, -0.2f, 0.02f);
+            stick.transform.localScale = new Vector3(0.025f, 0.5f, 0.025f);
             stick.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Plain("FlagStick", new Color(0.3f, 0.22f, 0.12f), 0.3f);
             GameObject flag = GameObject.CreatePrimitive(PrimitiveType.Cube);
             RemoveCollider(flag);
             flag.name = "Flag";
-            flag.transform.SetParent(flagRoot.transform, false);
-            flag.transform.localPosition = new Vector3(0f, -0.45f, 0.2f);
-            flag.transform.localScale = new Vector3(0.02f, 0.25f, 0.38f);
+            flag.transform.SetParent(flagHand, false);
+            flag.transform.localPosition = new Vector3(0f, -0.38f, 0.18f);
+            flag.transform.localScale = new Vector3(0.015f, 0.22f, 0.32f);
             flag.GetComponent<Renderer>().sharedMaterial = WorldMaterials.Plain("SignalFlag", new Color(0.98f, 0.82f, 0.05f), 0.3f);
-            dayAttendant.AddComponent<AttendantWave>().Configure(limbs);
-            chunk.DayOnly.Add(dayAttendant);
-            TrackMaterials(dayAttendant);
+            chunk.DayOnly.Add(day.gameObject);
+            chunk.Attendants.Add(day);
+            chunk.Attendants.Add(night);
+        }
+
+        private void Attendant(PersonAnimator person, Vector3 spot)
+        {
+            // A short beat up and down the platform end.
+            person.StrollMin = new Vector2(PlatformEdge - 2.4f, spot.z - 3f);
+            person.StrollMax = new Vector2(PlatformEdge - 0.9f, spot.z + 1.5f);
+            person.gameObject.AddComponent<Cab3DInteractiveObject>().Configure("station passenger worker", CabInteractionReaction.Wave);
         }
 
         private static Material lanternBeamMaterial;

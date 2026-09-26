@@ -11,8 +11,11 @@ namespace SortingStation
     /// </summary>
     public sealed class CabLookAround : MonoBehaviour
     {
-        public const float MaxYaw = 35f;
+        public const float MaxYaw = 90f;
         public const float MaxPitch = 15f;
+        public const float MaxPitchDown = 25f;
+        /// <summary>After letting go, the view stays where it is for a moment before turning back.</summary>
+        public const float HoldSeconds = 1.5f;
         /// <summary>
         /// The cab keeps a constant horizontal field of view, so the whole desk fits on every
         /// tablet: narrower screens (4:3) see more vertically instead of losing the side levers.
@@ -31,6 +34,9 @@ namespace SortingStation
         private float pitchVelocity;
         private bool dragging;
         private Vector2 lastPosition;
+        private float releasedAt;
+        private float lastTap = -10f;
+        private bool previewHold;
 
         public float Yaw => yaw;
         public float Pitch => pitch;
@@ -56,10 +62,14 @@ namespace SortingStation
                 {
                     dragging = true;
                     lastPosition = position;
+                    // A double tap on free space looks straight ahead again at once.
+                    if (Time.unscaledTime - lastTap < 0.3f) releasedAt = -10f;
+                    lastTap = Time.unscaledTime;
                 }
-                else if (!pressed)
+                else if (!pressed && dragging)
                 {
                     dragging = false;
+                    releasedAt = Time.unscaledTime - lastTap < 0.3f && Mathf.Abs(yaw) > 0f ? releasedAt : Time.unscaledTime;
                 }
                 if (dragging)
                 {
@@ -70,7 +80,7 @@ namespace SortingStation
                 }
             }
 
-            if (!dragging)
+            if (!dragging && !previewHold && Time.unscaledTime - releasedAt > HoldSeconds)
             {
                 yaw = Mathf.SmoothDamp(yaw, 0f, ref yawVelocity, ReturnSeconds, Mathf.Infinity, Time.unscaledDeltaTime);
                 pitch = Mathf.SmoothDamp(pitch, 0f, ref pitchVelocity, ReturnSeconds, Mathf.Infinity, Time.unscaledDeltaTime);
@@ -84,7 +94,16 @@ namespace SortingStation
         {
             // Dragging the scene to the left looks to the right, like moving a photo under a finger.
             yaw = Mathf.Clamp(yaw - degrees.x, -MaxYaw, MaxYaw);
-            pitch = Mathf.Clamp(pitch - degrees.y, -MaxPitch, MaxPitch);
+            pitch = Mathf.Clamp(pitch - degrees.y, -MaxPitchDown, MaxPitch);
+        }
+
+        /// <summary>Previews and captures: hold the head turned (null lets it spring back).</summary>
+        public void SetPreviewLook(float? yawDegrees, float pitchDegrees = 0f)
+        {
+            previewHold = yawDegrees.HasValue;
+            if (!previewHold) return;
+            yaw = Mathf.Clamp(yawDegrees.Value, -MaxYaw, MaxYaw);
+            pitch = Mathf.Clamp(pitchDegrees, -MaxPitchDown, MaxPitch);
         }
 
         private static bool IsOverUi()

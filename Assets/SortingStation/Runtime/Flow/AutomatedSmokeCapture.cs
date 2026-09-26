@@ -205,6 +205,38 @@ namespace SortingStation
                 yield return Capture(file, 1600, 1000);
             }
             if (cab != null) cab.ConfigureDistancePreview(meadowView, false, 0.5f, true, -1, false);
+
+            // People: waiting on the platform, looked at from the cab, then boarding and alighting.
+            if (cab != null && cab.LookAround != null)
+            {
+                cab.ConfigureDistancePreview(stop - 32f, false, 0.45f, true, -1, false);
+                yield return new WaitForSecondsRealtime(1.2f);
+                view.Streamed.SetStationPhase(CabStationPhase.Approaching);
+                cab.LookAround.SetPreviewLook(-62f, -22f);
+                yield return new WaitForSecondsRealtime(2.5f);
+                yield return Capture("42-platform-people.png", 1600, 1000);
+                view.Streamed.SetStationPhase(CabStationPhase.DoorsOpen);
+                cab.ConfigureDistancePreview(stop, false, 0.45f, true, -1, false);
+                yield return new WaitForSecondsRealtime(0.5f);
+                view.Streamed.SetPassengerReport(new CabPassengerStopReport(null, 8, 5, 20, 76));
+                cab.LookAround.SetPreviewLook(-12f, -4f);
+                yield return new WaitForSecondsRealtime(4f);
+                yield return Capture("43-boarding.png", 1600, 1000);
+                yield return new WaitForSecondsRealtime(5f);
+                yield return Capture("44-boarding-later.png", 1600, 1000);
+                view.Streamed.SetStationPhase(CabStationPhase.Complete);
+                cab.LookAround.SetPreviewLook(85f, -10f);
+                yield return new WaitForSecondsRealtime(0.8f);
+                yield return Capture("45-cab-right.png", 1600, 1000);
+                cab.LookAround.SetPreviewLook(-89f, -18f);
+                yield return new WaitForSecondsRealtime(0.8f);
+                yield return Capture("46-cab-left.png", 1600, 1000);
+                cab.ConfigureDistancePreview(stop, true, 0.95f, false, -1, false);
+                cab.LookAround.SetPreviewLook(-40f, -22f);
+                yield return new WaitForSecondsRealtime(1.5f);
+                yield return Capture("47-attendant-night.png", 1600, 1000);
+                cab.LookAround.SetPreviewLook(null);
+            }
             Debug.Log("SMOKE_EVENT " + planner.At(Find(p => p.IsStation && p.Event != StationEvent.None, 60f)).Event);
             foreach ((string file, float distance, bool lights, float time) in extra)
             {

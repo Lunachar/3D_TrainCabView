@@ -103,6 +103,7 @@ namespace SortingStation
         private WeatherType lastDispatcherWeather = (WeatherType)(-1);
         private bool throttleGripPressed;
         private CabLookAround lookAround;
+        public CabLookAround LookAround => lookAround;
         private AccessibleButton radioPanelToggle;
         private float nextScreenTextUpdate;
         private bool screenTapCandidate;
@@ -499,8 +500,18 @@ namespace SortingStation
 
         private void SyncOverlay(AccessibleButton button, CabControlAction action, bool dispatcherAcknowledgement)
         {
-            if (button == null || !interior3D.TryGetControlScreenRect(action, dispatcherAcknowledgement, out Rect screenRect)) return;
+            if (button == null) return;
             RectTransform target = button.RectTransform;
+            // When the driver looks aside the control leaves the screen: park its touch target
+            // far away so it cannot catch taps meant for the view.
+            bool visible = interior3D.TryGetControlScreenRect(action, dispatcherAcknowledgement, out Rect screenRect) &&
+                           screenRect.xMax > 0f && screenRect.xMin < Screen.width && screenRect.yMax > 0f && screenRect.yMin < Screen.height &&
+                           (lookAround == null || Mathf.Abs(lookAround.Yaw) < 60f);
+            if (!visible)
+            {
+                button.SetRestingAnchoredPosition(new Vector2(-100000f, -100000f));
+                return;
+            }
             RectTransform parent = target.parent as RectTransform;
             if (parent == null ||
                 !RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenRect.min, null, out Vector2 min) ||

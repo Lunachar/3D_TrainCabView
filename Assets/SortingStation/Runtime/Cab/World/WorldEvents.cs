@@ -48,13 +48,12 @@ namespace SortingStation
             for (int i = 0; i < count; i++)
             {
                 Vector3 spot = S(along + Range(-spread, spread), lateral + Range(-spread * 0.5f, spread * 0.5f), y);
-                Color coat = palette != null ? palette[i % palette.Length] : Color.HSVToRGB((float)random.NextDouble(), Range(0.3f, 0.7f), Range(0.25f, 0.7f));
-                GameObject person = CabWorld3DPrototypeFactory.CreatePassenger(parent, "EventPerson_" + i, spot, coat, scale < 1f || i % 7 == 6, false, false, out _, out _, out _);
                 Vector3 toward = lookAt - spot;
                 toward.y = 0f;
-                if (toward.sqrMagnitude > 0.01f) person.transform.localRotation = Quaternion.LookRotation(toward, Vector3.up) * Quaternion.Euler(0f, Range(-25f, 25f), 0f);
-                if (scale != 1f) person.transform.localScale *= scale;
-                TrackMaterials(person);
+                Quaternion facing = toward.sqrMagnitude > 0.01f ? Quaternion.LookRotation(toward, Vector3.up) * Quaternion.Euler(0f, Range(-25f, 25f), 0f) : Quaternion.identity;
+                PersonAnimator person = SpawnPerson(parent, "EventPerson_" + i, spot, facing, random, scale < 1f || i % 7 == 6,
+                    palette != null ? palette[i % palette.Length] : (Color?)null);
+                person.AllowStrolling = false;
             }
         }
 
@@ -195,11 +194,10 @@ namespace SortingStation
             {
                 float a = (i - 3f) * 0.35f;
                 Vector3 spot = S(-6f + Mathf.Sin(a) * 4f, PlatformEdge - 3.2f + Mathf.Cos(a) * 1.2f, PlatformHeight);
-                GameObject musician = CabWorld3DPrototypeFactory.CreatePassenger(group, "Musician_" + i, spot, uniforms[0], false, false, false, out _, out _, out _);
-                musician.transform.localRotation = SR(-6f, 90f);
+                PersonAnimator musician = SpawnPerson(group, "Musician_" + i, spot, SR(-6f, 90f), random, false, uniforms[0]);
+                musician.AllowStrolling = false;
                 meshes.For(gold, 1f).AddCylinder(spot + Vector3.up * 1.1f + SR(-6f, 90f) * Vector3.forward * 0.35f, i % 3 == 0 ? 0.28f : 0.1f, 0.6f, 10,
                     SR(-6f, 90f) * Quaternion.Euler(70f, 0f, 0f));
-                TrackMaterials(musician);
             }
             Crowd(group, -6f, PlatformEdge - 1.4f, PlatformHeight, 8f, 8, S(-6f, PlatformEdge - 3.2f, 0f));
         }

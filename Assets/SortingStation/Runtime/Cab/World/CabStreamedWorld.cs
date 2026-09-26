@@ -327,42 +327,40 @@ namespace SortingStation
 
         public void SetStationPhase(CabStationPhase phase)
         {
-            if (phase == CabStationPhase.Idle || phase == CabStationPhase.Complete || phase == CabStationPhase.Cancelled) stationChunk = null;
             WorldChunk chunk = StationChunk();
             if (chunk == null) return;
-            bool visible = phase == CabStationPhase.Approaching || phase == CabStationPhase.WaitingForDoors || phase == CabStationPhase.DoorsOpen ||
-                           phase == CabStationPhase.Releasing;
-            foreach (Cab3DPassengerAgent agent in chunk.Passengers)
-            {
-                if (agent == null) continue;
-                agent.SetPlatformVisible(visible);
-                agent.SetDoorsOpen(phase == CabStationPhase.DoorsOpen);
-            }
+            bool arriving = phase == CabStationPhase.Approaching || phase == CabStationPhase.WaitingForDoors;
+            Camera eye = Camera.main;
+            chunk.Crowd?.LookAtTrain(arriving && eye != null ? eye.transform.position : (Vector3?)null);
+            if (phase == CabStationPhase.Approaching)
+                foreach (PersonAnimator attendant in chunk.Attendants) attendant?.Wave(4f);
+            if (phase == CabStationPhase.Releasing || phase == CabStationPhase.Complete || phase == CabStationPhase.Cancelled)
+                chunk.Crowd?.CloseDoors();
+            if (phase == CabStationPhase.Idle || phase == CabStationPhase.Complete || phase == CabStationPhase.Cancelled) stationChunk = null;
         }
 
         public void SetPassengerReport(CabPassengerStopReport report)
         {
             WorldChunk chunk = StationChunk();
-            if (chunk == null || report == null) return;
-            int departing = Mathf.Min(chunk.Passengers.Count, report.Boarded);
-            int arriving = Mathf.Min(Mathf.Max(0, chunk.Passengers.Count - departing), report.Alighted);
-            for (int i = 0; i < chunk.Passengers.Count; i++)
-                chunk.Passengers[i]?.SetFlow(i < departing, i >= departing && i < departing + arriving);
+            if (chunk == null || report == null || chunk.Crowd == null || chunk.PlatformFrame == null) return;
+            List<Vector3> doors = new List<Vector3>();
+            if (consist != null)
+                for (int coach = 0; coach < CabTrainConsist.CoachCount; coach++)
+                    for (int door = 0; door < 2; door++)
+                        doors.Add(chunk.PlatformFrame.InverseTransformPoint(consist.DoorPosition(coach, door)));
+            chunk.Crowd.Exchange(Mathf.Min(report.Boarded, chunk.Crowd.WaitingCount), Mathf.Min(report.Alighted, 12), doors);
         }
 
         public void SetPassengerWeather(WeatherType weather)
         {
-            foreach (WorldChunk chunk in chunks.Values)
-                foreach (Cab3DPassengerAgent agent in chunk.Passengers)
-                    agent?.SetWetWeather(weather == WeatherType.Rain);
         }
 
         public IEnumerable<Cab3DInteractiveObject> Interactives()
         {
             foreach (WorldChunk chunk in chunks.Values)
-                foreach (Cab3DPassengerAgent agent in chunk.Passengers)
+                foreach (PersonAnimator person in chunk.Attendants)
                 {
-                    Cab3DInteractiveObject item = agent != null ? agent.GetComponent<Cab3DInteractiveObject>() : null;
+                    Cab3DInteractiveObject item = person != null ? person.GetComponent<Cab3DInteractiveObject>() : null;
                     if (item != null) yield return item;
                 }
         }

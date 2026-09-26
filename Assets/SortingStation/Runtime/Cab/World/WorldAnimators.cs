@@ -33,6 +33,24 @@ namespace SortingStation
         }
     }
 
+    /// <summary>Keeps a part (a lantern beam) pointing the same way relative to a frame while its holder moves.</summary>
+    public sealed class KeepWorldRotation : MonoBehaviour
+    {
+        private Transform frame;
+        private Quaternion offset;
+
+        public void Configure(Transform reference, Quaternion relative)
+        {
+            frame = reference;
+            offset = relative;
+        }
+
+        private void LateUpdate()
+        {
+            if (frame != null) transform.rotation = frame.rotation * offset * Quaternion.Euler(Mathf.Sin(Time.time * 1.3f) * 4f, Mathf.Sin(Time.time * 0.9f) * 6f, 0f);
+        }
+    }
+
     /// <summary>An LED screen slowly cycling through colours.</summary>
     public sealed class ColorCycle : MonoBehaviour
     {

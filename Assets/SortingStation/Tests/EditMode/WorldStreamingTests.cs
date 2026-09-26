@@ -99,6 +99,31 @@ namespace SortingStation.Tests
         }
 
         [Test]
+        public void PeopleAreOneSkinnedMeshWithAWalkingSkeleton()
+        {
+            GameObject parent = new GameObject("Platform");
+            try
+            {
+                System.Random random = new System.Random(4);
+                for (int i = 0; i < 12; i++)
+                {
+                    PersonAnimator person = PersonFactory.Create(parent.transform, "P" + i, new Vector3(i, 0f, 0f), PersonLook.Random(random, i % 4 == 0));
+                    SkinnedMeshRenderer[] skins = person.GetComponentsInChildren<SkinnedMeshRenderer>();
+                    Assert.That(skins.Length, Is.EqualTo(1), "one renderer per person");
+                    Mesh mesh = skins[0].sharedMesh;
+                    Assert.That(mesh.triangles.Length / 3, Is.LessThan(3500), "cheap enough for crowds on the tablet");
+                    Assert.That(skins[0].bones.Length, Is.EqualTo(18));
+                    Assert.That(mesh.bounds.min.y, Is.InRange(-0.1f, 0.05f), "feet on the ground");
+                    Assert.That(mesh.bounds.max.y, Is.InRange(1f, 2.3f), "a person's height");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(parent);
+            }
+        }
+
+        [Test]
         public void VehiclesAndRailCarsStayWithinTriangleBudgets()
         {
             foreach (VehicleType type in System.Enum.GetValues(typeof(VehicleType)))

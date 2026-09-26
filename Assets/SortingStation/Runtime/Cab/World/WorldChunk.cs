@@ -27,7 +27,8 @@ namespace SortingStation
         public float CrossingAngle = 1f;
         public readonly List<TextMesh> Signs = new List<TextMesh>();
         public readonly List<Transform> SignBoards = new List<Transform>();
-        public readonly List<Cab3DPassengerAgent> Passengers = new List<Cab3DPassengerAgent>();
+        public StationCrowd Crowd;
+        public readonly List<PersonAnimator> Attendants = new List<PersonAnimator>();
         public readonly List<Mesh> Meshes = new List<Mesh>();
         public readonly List<Material> Materials = new List<Material>();
         private bool? nearShown;

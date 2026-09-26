@@ -130,7 +130,7 @@ namespace SortingStation.Tests
             Assert.That(look.Pitch, Is.EqualTo(CabLookAround.MaxPitch));
             look.ApplyDrag(new Vector2(1000f, 1000f));
             Assert.That(look.Yaw, Is.EqualTo(-CabLookAround.MaxYaw));
-            Assert.That(look.Pitch, Is.EqualTo(-CabLookAround.MaxPitch));
+            Assert.That(look.Pitch, Is.EqualTo(-CabLookAround.MaxPitchDown));
         }
 
         private Rect ViewportRect(BoxCollider hitArea)
