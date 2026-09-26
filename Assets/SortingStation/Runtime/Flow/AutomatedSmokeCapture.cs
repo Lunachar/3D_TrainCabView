@@ -185,13 +185,16 @@ namespace SortingStation
             };
  
             float meadowView = Find(p => p.Kind == WorldChunkKind.Meadow || p.Kind == WorldChunkKind.Field, 40f);
-            (string file, float time)[] skies = { ("30-sunrise.png", 0.1f), ("31-morning.png", 0.16f), ("32-noon.png", 0.5f), ("33-sunset.png", 0.78f), ("34-dusk.png", 0.82f), ("35-night-sky.png", 0.97f) };
+            (string file, float time)[] skies = { ("30-sunrise.png", 0.135f), ("31-morning.png", 0.16f), ("32-noon.png", 0.5f), ("33-sunset.png", 0.78f), ("34-dusk.png", 0.82f), ("35-night-sky.png", 0.97f) };
             foreach ((string file, float time) in skies)
             {
+                // Sunrise and sunset are shot facing the low sun, where the sky is most colourful.
+                view.PreviewSun = file.StartsWith("30") ? new Vector2(1.5f, -12f) : file.StartsWith("33") ? new Vector2(2.5f, 14f) : (Vector2?)null;
                 if (cab != null) cab.ConfigureDistancePreview(meadowView, time > 0.86f, time, true);
                 yield return new WaitForSecondsRealtime(1f);
                 yield return Capture(file, 1600, 1000);
             }
+            view.PreviewSun = null;
             // Low sun straight ahead: the rails turn into two bright lines; then higher and to the side for the wires.
             (string file, float elevation, float bearing, float time)[] glints = { ("48-sun-ahead-rails.png", 6f, 4f, 0.14f), ("49-sun-wires.png", 10f, 22f, 0.3f), ("50-sun-behind.png", 30f, 160f, 0.35f) };
             foreach ((string file, float elevation, float bearing, float time) in glints)

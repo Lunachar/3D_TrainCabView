@@ -98,8 +98,11 @@ namespace SortingStation
             skybox.SetFloat("_SunsetAmount", sunset);
             skybox.SetFloat("_SunVisible", badWeather ? 0.15f : Mathf.Clamp01(day * 1.5f) * (sunScene.y > -0.05f ? 1f : 0f));
             skybox.SetFloat("_CloudCover", badWeather ? 0.95f : 0.56f);
-            skybox.SetColor("_CloudLight", Color.Lerp(new Color(0.05f, 0.06f, 0.09f), badWeather ? new Color(0.62f, 0.64f, 0.67f) : new Color(0.97f, 0.97f, 0.97f), day));
-            skybox.SetColor("_CloudShadow", Color.Lerp(new Color(0.02f, 0.025f, 0.04f), badWeather ? new Color(0.36f, 0.38f, 0.41f) : new Color(0.62f, 0.67f, 0.75f), day));
+            // At sunrise and sunset the clouds glow orange and pink, with lilac shadows.
+            Color cloudLight = badWeather ? new Color(0.62f, 0.64f, 0.67f) : Color.Lerp(new Color(0.97f, 0.97f, 0.97f), new Color(1f, 0.6f, 0.42f), sunset * 0.75f);
+            Color cloudShadow = badWeather ? new Color(0.36f, 0.38f, 0.41f) : Color.Lerp(new Color(0.62f, 0.67f, 0.75f), new Color(0.5f, 0.38f, 0.55f), sunset * 0.7f);
+            skybox.SetColor("_CloudLight", Color.Lerp(new Color(0.05f, 0.06f, 0.09f), cloudLight, day));
+            skybox.SetColor("_CloudShadow", Color.Lerp(new Color(0.02f, 0.025f, 0.04f), cloudShadow, day));
             skybox.SetFloat("_StarAmount", badWeather ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 0.95f, night01)) * (1f - Urban * 0.6f));
             skybox.SetFloat("_MoonAmount", badWeather ? 0f : moonAmount * Mathf.InverseLerp(0.3f, 0.8f, night01));
             skybox.SetFloat("_MoonPhase", moonPhase);

@@ -58,7 +58,7 @@ namespace SortingStation
             if (material == null) return;
             // Glass wets gradually and dries slowly after the rain stops.
             rain = Mathf.MoveTowards(rain, targetRain, Time.deltaTime * (targetRain > rain ? 0.2f : 0.08f));
-            snow = Mathf.MoveTowards(snow, targetSnow, Time.deltaTime * (targetSnow > snow ? 0.12f : 0.04f));
+            snow = Mathf.MoveTowards(snow, targetSnow, Time.deltaTime * (targetSnow > snow ? 0.12f : 0.1f));
             material.SetFloat("_Rain", rain);
             material.SetFloat("_Snow", snow);
             material.SetFloat("_WipersOn", wipers ? 1f : 0f);
