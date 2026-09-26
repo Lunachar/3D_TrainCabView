@@ -229,7 +229,7 @@ namespace SortingStation
                 cab.ConfigureDistancePreview(stop - 32f, false, 0.45f, true, -1, false);
                 yield return new WaitForSecondsRealtime(1.2f);
                 view.Streamed.SetStationPhase(CabStationPhase.Approaching);
-                cab.LookAround.SetPreviewLook(-62f, -22f);
+                cab.LookAround.SetPreviewLook(-48f, -6f);
                 yield return new WaitForSecondsRealtime(2.5f);
                 yield return Capture("42-platform-people.png", 1600, 1000);
                 view.Streamed.SetStationPhase(CabStationPhase.DoorsOpen);
@@ -248,10 +248,14 @@ namespace SortingStation
                 cab.LookAround.SetPreviewLook(-89f, -18f);
                 yield return new WaitForSecondsRealtime(0.8f);
                 yield return Capture("46-cab-left.png", 1600, 1000);
-                cab.ConfigureDistancePreview(stop, true, 0.95f, false, -1, false);
-                cab.LookAround.SetPreviewLook(-40f, -22f);
+                // The attendant at the platform end, seen while pulling in: lantern at night, flag by day.
+                cab.ConfigureDistancePreview(stop - 14f, true, 0.95f, true, -1, false);
+                cab.LookAround.SetPreviewLook(-16f, -5f);
                 yield return new WaitForSecondsRealtime(1.5f);
                 yield return Capture("47-attendant-night.png", 1600, 1000);
+                cab.ConfigureDistancePreview(stop - 14f, false, 0.45f, true, -1, false);
+                yield return new WaitForSecondsRealtime(1.5f);
+                yield return Capture("47b-attendant-day.png", 1600, 1000);
                 cab.LookAround.SetPreviewLook(null);
             }
             Debug.Log("SMOKE_EVENT " + planner.At(Find(p => p.IsStation && p.Event != StationEvent.None, 60f)).Event);

@@ -73,7 +73,7 @@ Shader "SortingStation/Glint"
                 float3 halfway = normalize(sun.direction + view);
                 float square = 1.0 - abs(dot(normalize(_GlintAxis.xyz), halfway));
                 // A sharp line of light plus a soft glow around it, so the flash reads from afar.
-                half glint = (pow(saturate(square), _GlintSharpness) + pow(saturate(square), _GlintSharpness * 0.12) * 0.12) * _GlintStrength;
+                half glint = (pow(saturate(square), _GlintSharpness) + pow(saturate(square), _GlintSharpness * 0.45) * 0.2) * _GlintStrength;
                 half thin = sqrt(input.coverage);
                 half3 colour = lerp(unity_FogColor.rgb, diffuse, max(input.coverage, 0.35h)) + sun.color * glint * 9.0 * thin;
 

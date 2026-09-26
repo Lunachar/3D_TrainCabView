@@ -812,7 +812,8 @@ namespace SortingStation
             Transform frame = chunk.PlatformFrame;
             if (frame == null) return;
             bool gnome = plan.Station == StationStyle.Gnome;
-            Vector3 spot = new Vector3(PlatformEdge - 1.1f, 0f, WorldPlanner.StopOffsetPastPlatformCentre + 3.5f);
+            // On the platform, a pace short of its end, just ahead of where the cab stops.
+            Vector3 spot = new Vector3(PlatformEdge - 1.1f, 0f, WorldPlanner.StopOffsetPastPlatformCentre + 1.5f);
             Color vest = new Color(0.95f, 0.42f, 0.05f);
             System.Random rng = new System.Random(plan.Seed * 17 + 3);
             Quaternion facing = Quaternion.Euler(0f, 180f, 0f);
@@ -889,7 +890,7 @@ namespace SortingStation
             person.UmbrellaAllowed = false;
             // A short beat up and down the platform end.
             person.StrollMin = new Vector2(PlatformEdge - 2.4f, spot.z - 3f);
-            person.StrollMax = new Vector2(PlatformEdge - 0.9f, spot.z + 1.5f);
+            person.StrollMax = new Vector2(PlatformEdge - 0.9f, Mathf.Min(spot.z + 1.5f, WorldPlanner.PlatformLength * 0.5f - 0.6f));
             person.gameObject.AddComponent<Cab3DInteractiveObject>().Configure("station passenger worker", CabInteractionReaction.Wave);
         }
 
