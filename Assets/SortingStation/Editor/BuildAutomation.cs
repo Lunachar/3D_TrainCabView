@@ -74,6 +74,9 @@ namespace SortingStation.EditorTools
             string fullPath = Path.GetFullPath(relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildPipeline.GetBuildTargetGroup(target), target);
+            // Many artwork sizes are not multiples of 4, which ETC2 cannot compress; ASTC takes
+            // any size and the target tablets support it, so keep it explicit.
+            if (target == BuildTarget.Android) EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = scenes,
