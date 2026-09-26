@@ -257,7 +257,15 @@ namespace SortingStation
             int weatherOverride = -1, bool wipersOn = false)
         {
             if (dayTime01 >= 0f) journey?.FreezeDayTime(dayTime01);
-            if (clearWeather) journey?.SetPreviewWeather(WeatherType.Clear, 0f);
+            if (clearWeather)
+            {
+                journey?.SetPreviewWeather(WeatherType.Clear, 1f);
+                if (interior3D != null)
+                {
+                    interior3D.SetWeather(WeatherType.Clear, 0f, false);
+                    interior3D.DryWindscreen();
+                }
+            }
             if (weatherOverride >= 0) journey?.SetPreviewWeather((WeatherType)weatherOverride, 1f);
             if (wipers != wipersOn) ActivateControl(CabControlAction.Wipers);
             departureAuthorized = true;

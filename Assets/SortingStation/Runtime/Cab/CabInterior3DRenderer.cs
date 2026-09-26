@@ -44,6 +44,12 @@ namespace SortingStation
         private CabWindscreenWeather windscreenWeather;
 
         /// <summary>Rain or snow on the windscreen; sheltered (in a tunnel) stops new drops landing.</summary>
+        public void DryWindscreen()
+        {
+            if (windscreenWeather == null && interior != null) windscreenWeather = interior.GetComponentInChildren<CabWindscreenWeather>(true);
+            if (windscreenWeather != null) windscreenWeather.Dry();
+        }
+
         public void SetWeather(WeatherType weather, float intensity, bool sheltered)
         {
             if (windscreenWeather == null && interior != null) windscreenWeather = interior.GetComponentInChildren<CabWindscreenWeather>(true);

@@ -192,6 +192,16 @@ namespace SortingStation
                 yield return new WaitForSecondsRealtime(1f);
                 yield return Capture(file, 1600, 1000);
             }
+            // Low sun straight ahead: the rails turn into two bright lines; then higher and to the side for the wires.
+            (string file, float elevation, float bearing, float time)[] glints = { ("48-sun-ahead-rails.png", 6f, 4f, 0.14f), ("49-sun-wires.png", 10f, 22f, 0.3f), ("50-sun-behind.png", 30f, 160f, 0.35f) };
+            foreach ((string file, float elevation, float bearing, float time) in glints)
+            {
+                view.PreviewSun = new Vector2(elevation, bearing);
+                if (cab != null) cab.ConfigureDistancePreview(meadowView, false, time, true);
+                yield return new WaitForSecondsRealtime(1f);
+                yield return Capture(file, 1600, 1000);
+            }
+            view.PreviewSun = null;
             (string file, float time, WeatherType weather, bool wipersOn)[] weathers =
             {
                 ("36-rain-day.png", 0.45f, WeatherType.Rain, false), ("37-rain-wipers.png", 0.45f, WeatherType.Rain, true),

@@ -30,6 +30,8 @@ namespace SortingStation
         public const float DriverHeadPitch = 5f;
         private const float NoseLampAhead = 3f;
         private Light sun;
+        /// <summary>Previews only: the sun's elevation and bearing from the cab (0 = straight ahead).</summary>
+        public Vector2? PreviewSun { get; set; }
         private Light headlight;
         private CabHeadlights headlights3D;
         // Immersive mode streams an endless world instead of the looped prototype route.
@@ -672,6 +674,7 @@ namespace SortingStation
                 // the train turns, so shadows and the bright sky move across the windscreen.
                 Quaternion world = streamed != null ? routeRoot.rotation : Quaternion.identity;
                 sun.transform.rotation = world * Quaternion.Euler(Mathf.Lerp(-8f, 2f + arc * 60f, daylight), Mathf.Lerp(-68f, 62f, sunTravel), 0f);
+                if (PreviewSun.HasValue) sun.transform.rotation = Quaternion.Euler(PreviewSun.Value.x, 180f + PreviewSun.Value.y, 0f);
                 if (atmosphereSky != null)
                 {
                     if (dayTime01 < lastDayTime01 - 0.5f) dayCount++;

@@ -64,6 +64,10 @@ namespace SortingStation
             material.SetFloat("_GlintStrength", sunGlint);
             // Only the rail heads carry the headlight sheen; wires are above the beam.
             material.SetFloat("_GlintStrength2", name == "RailHead" ? 1f : 0.3f);
+            // Wheels polish the rail heads to a mirror; copper wires only shine a little.
+            material.SetFloat("_Polish", name == "RailHead" ? 1f : 0.3f);
+            material.SetFloat("_MinPixel", name == "RailHead" ? 0f : 1f);
+            material.SetFloat("_WireRadius", 0.01f);
             Cache[key] = material;
             Glints.Add(material);
             return material;

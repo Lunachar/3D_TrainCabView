@@ -46,11 +46,18 @@ namespace SortingStation
 
         public void SetWipers(bool on) => wipers = on;
 
+        /// <summary>Previews: start from dry glass instead of waiting for the last shower to dry.</summary>
+        public void Dry()
+        {
+            rain = targetRain;
+            snow = targetSnow;
+        }
+
         private void Update()
         {
             if (material == null) return;
             // Glass wets gradually and dries slowly after the rain stops.
-            rain = Mathf.MoveTowards(rain, targetRain, Time.deltaTime * (targetRain > rain ? 0.2f : 0.05f));
+            rain = Mathf.MoveTowards(rain, targetRain, Time.deltaTime * (targetRain > rain ? 0.2f : 0.08f));
             snow = Mathf.MoveTowards(snow, targetSnow, Time.deltaTime * (targetSnow > snow ? 0.12f : 0.04f));
             material.SetFloat("_Rain", rain);
             material.SetFloat("_Snow", snow);

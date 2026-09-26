@@ -10,6 +10,9 @@ Shader "SortingStation/Glint"
         _GlintSharpness ("Glint sharpness", Float) = 260
         _GlintStrength ("Glint strength", Float) = 1
         _GlintStrength2 ("Headlight sheen", Float) = 1
+        _Polish ("Polish (sky reflection and sun streak)", Float) = 0
+        _MinPixel ("Keep at least a pixel wide (wires)", Float) = 0
+        _WireRadius ("Half thickness (m)", Float) = 0.01
     }
     SubShader
     {
@@ -34,20 +37,30 @@ Shader "SortingStation/Glint"
                 float4 _GlintAxis;
                 float _GlintSharpness;
                 float _GlintStrength;
+                float _Polish;
+                float _MinPixel;
+                float _WireRadius;
                 float _GlintStrength2;
             CBUFFER_END
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; };
-            struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; half3 normalWS : TEXCOORD1; half fog : TEXCOORD2; };
+            struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; half3 normalWS : TEXCOORD1; half fog : TEXCOORD2; half coverage : TEXCOORD3; };
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                VertexPositionInputs position = GetVertexPositionInputs(input.positionOS.xyz);
-                output.positionCS = position.positionCS;
-                output.positionWS = position.positionWS;
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                output.fog = ComputeFogFactor(position.positionCS.z);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                // Far away a wire is thinner than a pixel and breaks into dots; keep it one pixel
+                // wide and let it fade into the air instead, as a real wire does.
+                float pixel = 2.0 * length(GetCameraPositionWS() - positionWS) / (abs(UNITY_MATRIX_P[1][1]) * _ScreenParams.y);
+                float grow = max(0.0, 0.5 * pixel - _WireRadius) * _MinPixel;
+                positionWS += normalWS * grow;
+                output.coverage = _WireRadius / (_WireRadius + grow);
+                output.positionCS = TransformWorldToHClip(positionWS);
+                output.positionWS = positionWS;
+                output.normalWS = normalWS;
+                output.fog = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -59,8 +72,18 @@ Shader "SortingStation/Glint"
                 float3 view = normalize(GetCameraPositionWS() - input.positionWS);
                 float3 halfway = normalize(sun.direction + view);
                 float square = 1.0 - abs(dot(normalize(_GlintAxis.xyz), halfway));
-                half glint = pow(saturate(square), _GlintSharpness) * _GlintStrength;
-                half3 colour = diffuse + sun.color * glint * 9.0;
+                // A sharp line of light plus a soft glow around it, so the flash reads from afar.
+                half glint = (pow(saturate(square), _GlintSharpness) + pow(saturate(square), _GlintSharpness * 0.12) * 0.12) * _GlintStrength;
+                half thin = sqrt(input.coverage);
+                half3 colour = lerp(unity_FogColor.rgb, diffuse, max(input.coverage, 0.35h)) + sun.color * glint * 9.0 * thin;
+
+                // Polished rail tops: a mirror of the sky at grazing angles and a blinding streak
+                // where the low sun ahead reflects off them.
+                half fresnel = pow(1.0 - saturate(dot(n, view)), 4.0);
+                half3 sky = GlossyEnvironmentReflection(reflect(-view, n), 0.22h, 1.0h);
+                colour += sky * (0.25 + fresnel) * _Polish;
+                half streak = pow(saturate(dot(n, halfway)), 90.0) * 6.0 + pow(saturate(dot(n, halfway)), 12.0) * 0.4;
+                colour += sun.color * streak * _Polish * _GlintStrength;
 
                 // Headlight: polished metal shines in the beam, two bright lines of rail ahead.
                 if (_CabHeadlightPos.w > 0.5)
