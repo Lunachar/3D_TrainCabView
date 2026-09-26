@@ -18,3 +18,7 @@
 
 # Personal music for local listening only — never pushed to GitHub.
 /Assets/SortingStation/Audio/Music/*
+
+# Local Android builds and Burst debug output
+*.apk
+*_BurstDebugInformation_DoNotShip/

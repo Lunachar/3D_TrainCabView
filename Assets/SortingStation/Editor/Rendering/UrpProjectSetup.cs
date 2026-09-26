@@ -58,7 +58,8 @@ namespace SortingStation.EditorTools
                 RequireShader("SortingStation/WorldText"),
                 RequireShader("SortingStation/TerrainBlend"),
                 RequireShader("SortingStation/ImpostorBake"),
-                RequireShader("SortingStation/Glint"));
+                RequireShader("SortingStation/Glint"),
+                RequireShader("SortingStation/WindscreenWeather"));
             EditorUtility.SetDirty(settings);
 
             string conversion = ConvertStandardMaterials();

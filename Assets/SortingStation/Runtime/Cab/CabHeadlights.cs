@@ -64,6 +64,13 @@ namespace SortingStation
             SetOn(false);
         }
 
+        /// <summary>Tells the rail and wire shaders where the beam is (scene space).</summary>
+        public void PublishToShaders()
+        {
+            Shader.SetGlobalVector("_CabHeadlightPos", new Vector4(far.transform.position.x, far.transform.position.y, far.transform.position.z, on ? 1f : 0f));
+            Shader.SetGlobalVector("_CabHeadlightDir", far.transform.forward);
+        }
+
         public void SetOn(bool enabled)
         {
             on = enabled;

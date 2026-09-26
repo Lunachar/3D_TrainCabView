@@ -252,10 +252,13 @@ namespace SortingStation
         }
 
         /// <summary>Smoke-capture hook: stand still at a route distance, optionally with headlights on.</summary>
-        public void ConfigureDistancePreview(float distance, bool headlightsOn, float dayTime01 = -1f, bool clearWeather = false)
+        public void ConfigureDistancePreview(float distance, bool headlightsOn, float dayTime01 = -1f, bool clearWeather = false,
+            int weatherOverride = -1, bool wipersOn = false)
         {
             if (dayTime01 >= 0f) journey?.FreezeDayTime(dayTime01);
             if (clearWeather) journey?.SetPreviewWeather(WeatherType.Clear, 0f);
+            if (weatherOverride >= 0) journey?.SetPreviewWeather((WeatherType)weatherOverride, 1f);
+            if (wipers != wipersOn) ActivateControl(CabControlAction.Wipers);
             departureAuthorized = true;
             vigilanceAlarm = false;
             automaticStop = false;
@@ -2253,7 +2256,8 @@ namespace SortingStation
             if (world is CabWorld3DRenderer hybridWorld)
             {
                 hybridWorld.SetPassengerWeather(weatherType);
-                hybridWorld.SetWeather(weatherType);
+                hybridWorld.SetWeather(weatherType, intensity);
+                interior3D?.SetWeather(weatherType, intensity, hybridWorld.TunnelBlend > 0.4f);
             }
             bool badWeather = weatherType == WeatherType.Rain || weatherType == WeatherType.Fog || weatherType == WeatherType.Snow;
             if (badWeather && weatherType != lastDispatcherWeather)

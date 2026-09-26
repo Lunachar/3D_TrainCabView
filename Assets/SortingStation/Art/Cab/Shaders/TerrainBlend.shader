@@ -27,6 +27,8 @@ Shader "SortingStation/TerrainBlend"
         _FarEnd ("Far blend end (m)", Float) = 160
         _MacroTile ("Macro tile (m)", Float) = 250
         _RockSlope ("Rock below normal.y", Float) = 0.72
+        _Wetness ("Wetness", Range(0, 1)) = 0
+        _SnowCover ("Fresh snow", Range(0, 1)) = 0
     }
 
     SubShader
@@ -73,6 +75,8 @@ Shader "SortingStation/TerrainBlend"
                 float _FarEnd;
                 float _MacroTile;
                 half _RockSlope;
+                half _Wetness;
+                half _SnowCover;
             CBUFFER_END
 
             struct Attributes
@@ -145,6 +149,10 @@ Shader "SortingStation/TerrainBlend"
                 albedo = lerp(albedo, rock, rockWeight);
                 half macro = SAMPLE_TEXTURE2D(_MacroTex, sampler_GrassTex, metres / _MacroTile).r;
                 albedo *= lerp(0.78, 1.18, macro);
+                // Rain darkens the ground; falling snow slowly whitens it (less on steep rock).
+                albedo *= lerp(1.0, 0.68, _Wetness);
+                half settle = saturate(_SnowCover * (1.4 - rockWeight) - (1.0 - macro) * 0.25);
+                albedo = lerp(albedo, half3(0.86, 0.89, 0.93) * lerp(0.9, 1.05, macro), settle);
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = input.positionWS;

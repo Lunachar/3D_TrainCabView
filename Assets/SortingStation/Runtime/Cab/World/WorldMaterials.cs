@@ -45,11 +45,11 @@ namespace SortingStation
         public static Material ConcreteSleeper => Get("Concrete034", new Color(0.72f, 0.71f, 0.67f), 0.6f);
         public static Material WoodSleeper => Get("Planks021", new Color(0.42f, 0.30f, 0.20f), 0.5f);
         public static Material Rail => Plain("WorldRail", new Color(0.24f, 0.22f, 0.20f), 0.35f, 0.6f);
-        public static Material RailHead => GlintMaterial("RailHead", new Color(0.50f, 0.51f, 0.52f), 180f);
+        public static Material RailHead => GlintMaterial("RailHead", new Color(0.50f, 0.51f, 0.52f), 45f);
         public static Material Concrete => Get("Concrete034", new Color(0.80f, 0.79f, 0.75f), 0.6f);
         public static Material DarkConcrete => Get("Concrete034", new Color(0.48f, 0.48f, 0.46f), 0.6f);
         public static Material Steel => Get("Metal046A", new Color(0.46f, 0.48f, 0.50f), 0.7f);
-        public static Material Wire => GlintMaterial("Wire", new Color(0.13f, 0.11f, 0.09f), 320f);
+        public static Material Wire => GlintMaterial("Wire", new Color(0.13f, 0.11f, 0.09f), 70f);
 
         private static readonly List<Material> Glints = new List<Material>();
 
@@ -62,6 +62,8 @@ namespace SortingStation
             material.SetColor("_BaseColor", colour);
             material.SetFloat("_GlintSharpness", sharpness);
             material.SetFloat("_GlintStrength", sunGlint);
+            // Only the rail heads carry the headlight sheen; wires are above the beam.
+            material.SetFloat("_GlintStrength2", name == "RailHead" ? 1f : 0.3f);
             Cache[key] = material;
             Glints.Add(material);
             return material;
@@ -277,6 +279,14 @@ namespace SortingStation
             terrain.SetColor("_GravelTint", winter ? new Color(0.80f, 0.82f, 0.85f) : new Color(0.76f, 0.73f, 0.68f));
             terrain.SetColor("_RockTint", winter ? new Color(0.78f, 0.80f, 0.84f) : new Color(0.70f, 0.68f, 0.64f));
             return terrain;
+        }
+
+        /// <summary>Weather on the ground: wet after rain, white while snow settles.</summary>
+        public static void SetGroundWeather(float wetness, float snowCover)
+        {
+            if (terrain == null) return;
+            terrain.SetFloat("_Wetness", wetness);
+            terrain.SetFloat("_SnowCover", snowCover);
         }
 
         /// <summary>Night 0..1: lights windows and lamp glass.</summary>

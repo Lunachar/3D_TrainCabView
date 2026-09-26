@@ -146,6 +146,7 @@ namespace SortingStation
             CabMeshBuilder glass = new CabMeshBuilder();
             glass.AddQuad(sillLeft, sillRight, headRight, headLeft, Vector3.back);
             MeshPart(frame, "Windscreen", glass, p.Glass, castShadows: false);
+            BuildWindscreenWeather(frame, sillLeft, sillRight, headRight, headLeft);
 
             CabMeshBuilder surround = new CabMeshBuilder(0.8f);
             Vector3 glassUp = (headLeft - sillLeft).normalized;
@@ -265,6 +266,34 @@ namespace SortingStation
             CreateRadioHandset(controls, p);
         }
 
+        /// <summary>A layer just outside the glass that shows rain drops and snow (see CabWindscreenWeather).</summary>
+        private static void BuildWindscreenWeather(Transform frame, Vector3 sillLeft, Vector3 sillRight, Vector3 headRight, Vector3 headLeft)
+        {
+            Vector3 up = headLeft - sillLeft;
+            float height = up.magnitude;
+            Vector3 outward = Vector3.Cross(sillRight - sillLeft, up).normalized;
+            if (outward.z < 0f) outward = -outward;
+            Vector3 lift = outward * 0.004f;
+            Mesh mesh = new Mesh { name = "WindscreenWeather" };
+            mesh.vertices = new[] { sillLeft + lift, sillRight + lift, headRight + lift, headLeft + lift };
+            // UVs in metres on the glass: x across (matching the cab), y up the glass from the sill.
+            mesh.uv = new[] { new Vector2(sillLeft.x, 0f), new Vector2(sillRight.x, 0f), new Vector2(headRight.x, height), new Vector2(headLeft.x, height) };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            GameObject layer = new GameObject("WindscreenWeather", typeof(MeshFilter), typeof(MeshRenderer));
+            layer.transform.SetParent(frame, false);
+            layer.GetComponent<MeshFilter>().sharedMesh = mesh;
+            Material material = new Material(CabShaders.Windscreen) { name = "WindscreenWeather" };
+            float pivotV = 0.03f / Mathf.Max(0.1f, up.normalized.y);
+            material.SetVector("_PivotLeft", new Vector4(-0.46f, pivotV, 0f, 0f));
+            material.SetVector("_PivotRight", new Vector4(0.46f, pivotV, 0f, 0f));
+            MeshRenderer renderer = layer.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            layer.AddComponent<CabWindscreenWeather>().Configure(material);
+        }
+
         private static void BuildWipers(Transform root, Palette p)
         {
             Transform wipers = Group(root, "WipersOnGlass_Editable");
@@ -278,11 +307,17 @@ namespace SortingStation
                 pivot.localPosition = new Vector3(side * 0.46f, SillY + 0.03f, SillZ + 0.035f);
                 // Parked arms lean toward the centre; the renderer sweeps them around local Z.
                 pivot.localRotation = onGlass * Quaternion.Euler(0f, 0f, side * 86f);
+                // Long heavy-duty wipers: a sprung arm and a 60 cm rubber blade on a frame.
                 CabMeshBuilder arm = new CabMeshBuilder(0.3f);
-                arm.AddChamferBox(new Vector3(0f, 0.22f, 0.012f), new Vector3(0.014f, 0.44f, 0.01f), 0.003f, Quaternion.identity);
-                arm.AddChamferBox(new Vector3(0f, 0.27f, 0.022f), new Vector3(0.018f, 0.46f, 0.008f), 0.003f, Quaternion.identity);
-                arm.AddCylinder(Vector3.zero, 0.022f, 0.03f, 12, Quaternion.Euler(90f, 0f, 0f));
+                arm.AddChamferBox(new Vector3(0f, 0.3f, 0.016f), new Vector3(0.022f, 0.6f, 0.014f), 0.004f, Quaternion.identity);
+                arm.AddChamferBox(new Vector3(0f, 0.38f, 0.03f), new Vector3(0.03f, 0.62f, 0.012f), 0.004f, Quaternion.identity);
+                arm.AddChamferBox(new Vector3(0f, 0.38f, 0.008f), new Vector3(0.012f, 0.6f, 0.012f), 0.002f, Quaternion.identity);
+                arm.AddCylinder(Vector3.zero, 0.032f, 0.045f, 14, Quaternion.Euler(90f, 0f, 0f));
                 MeshPart(pivot, "WiperBlade", arm, p.Black, castShadows: false);
+                CabMeshBuilder spring = new CabMeshBuilder(0.3f);
+                spring.AddChamferBox(new Vector3(0f, 0.09f, 0.03f), new Vector3(0.018f, 0.16f, 0.018f), 0.004f, Quaternion.identity);
+                spring.AddCylinder(new Vector3(0f, 0f, 0.02f), 0.018f, 0.03f, 10, Quaternion.Euler(90f, 0f, 0f));
+                MeshPart(pivot, "WiperSpring", spring, p.Steel, castShadows: false);
             }
         }
 

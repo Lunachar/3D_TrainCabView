@@ -39,6 +39,8 @@ namespace SortingStation
         private float lastDayTime01;
         private int dayCount;
         private SunGlare glare;
+        private CabPrecipitation precipitation;
+        private CabPassingLight passingLight;
         private ShootingStars shootingStars;
         private Transform nativeSkyRoot;
         private Transform nativeSunDisc;
@@ -137,6 +139,9 @@ namespace SortingStation
             if (nativeSkyRoot != null) nativeSkyRoot.gameObject.SetActive(false);
             glare = worldCamera.gameObject.AddComponent<SunGlare>();
             shootingStars = SceneRoot.gameObject.AddComponent<ShootingStars>();
+            precipitation = SceneRoot.gameObject.AddComponent<CabPrecipitation>();
+            passingLight = driverRig.gameObject.AddComponent<CabPassingLight>();
+            passingLight.World = streamed;
             // The locomotive body around the cab is only for the mirrors; from inside it would
             // just hide the view.
             worldCamera.cullingMask &= ~(1 << CabTrainConsist.ExteriorLayer);
@@ -193,7 +198,10 @@ namespace SortingStation
         {
             if (streamed != null && ride != null)
             {
-                streamed.Advance(CabWorldRenderer.CalculateDistanceDelta(speed01, ride.WorldUnitsPerSecond, unscaledDeltaTime));
+                float step = CabWorldRenderer.CalculateDistanceDelta(speed01, ride.WorldUnitsPerSecond, unscaledDeltaTime);
+                streamed.Advance(step);
+                precipitation?.SetMotion(unscaledDeltaTime > 0f ? step / unscaledDeltaTime : 0f, streamed.TunnelBlend);
+                UpdateGroundWeather(unscaledDeltaTime);
                 TunnelBlend = streamed.TunnelBlend;
                 UpdateNativeSky(unscaledDeltaTime);
                 streamed.UpdateTraffic(unscaledDeltaTime, lastNight01 > 0.4f);
@@ -266,6 +274,27 @@ namespace SortingStation
             authoring?.SetHeadlights(enabled);
         }
         public void SetWeather(WeatherType weather) => nativeWeather = weather;
+
+        /// <summary>Weather with its strength: drives the rain and snow around the cab.</summary>
+        public void SetWeather(WeatherType weather, float intensity)
+        {
+            nativeWeather = weather;
+            weatherIntensity = intensity;
+            precipitation?.SetWeather(weather, intensity);
+        }
+
+        private float weatherIntensity;
+        private float groundWet;
+        private float groundSnow;
+
+        /// <summary>The ground gets wet in rain and white in snow over a minute or so, and dries slowly.</summary>
+        private void UpdateGroundWeather(float deltaTime)
+        {
+            bool rain = nativeWeather == WeatherType.Rain, snow = nativeWeather == WeatherType.Snow;
+            groundWet = Mathf.MoveTowards(groundWet, rain ? Mathf.Clamp01(weatherIntensity * 1.2f) : 0f, deltaTime * (rain ? 0.05f : 0.01f));
+            groundSnow = Mathf.MoveTowards(groundSnow, snow ? Mathf.Clamp01(weatherIntensity) * 0.85f : 0f, deltaTime * (snow ? 0.02f : 0.006f));
+            WorldMaterials.SetGroundWeather(groundWet, groundSnow);
+        }
         public void SetStationPhase(CabStationPhase phase)
         {
             authoring?.SetStationPhase(phase);
@@ -715,6 +744,7 @@ namespace SortingStation
                     horizonRing.Update(routeRoot.localRotation, atmosphereSky.HorizonColor, TunnelBlend);
             }
             headlights3D?.UpdateHaze(nightAmount, TunnelBlend, badWeather);
+            headlights3D?.PublishToShaders();
         }
 
         private void UpdateSunGlow(Renderer glow, Vector3 position, float glowAmount, bool badWeather, bool isInsideTunnel)

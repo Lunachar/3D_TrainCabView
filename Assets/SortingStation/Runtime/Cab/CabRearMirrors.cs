@@ -76,7 +76,7 @@ namespace SortingStation
                 camera.fieldOfView = FieldsOfView[i];
                 camera.nearClipPlane = 0.3f;
                 camera.farClipPlane = 140f;
-                camera.cullingMask = ~(1 << cockpitLayer);
+                camera.cullingMask = ~((1 << cockpitLayer) | (1 << CabPrecipitation.WeatherLayer));
                 camera.clearFlags = CameraClearFlags.Skybox;
                 camera.allowHDR = false;
                 camera.allowMSAA = false;

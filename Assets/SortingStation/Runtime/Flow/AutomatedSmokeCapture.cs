@@ -192,6 +192,19 @@ namespace SortingStation
                 yield return new WaitForSecondsRealtime(1f);
                 yield return Capture(file, 1600, 1000);
             }
+            (string file, float time, WeatherType weather, bool wipersOn)[] weathers =
+            {
+                ("36-rain-day.png", 0.45f, WeatherType.Rain, false), ("37-rain-wipers.png", 0.45f, WeatherType.Rain, true),
+                ("38-rain-night.png", 0.95f, WeatherType.Rain, true), ("39-snow-day.png", 0.45f, WeatherType.Snow, false),
+                ("40-snow-night.png", 0.95f, WeatherType.Snow, true), ("41-fog.png", 0.45f, WeatherType.Fog, false)
+            };
+            foreach ((string file, float time, WeatherType weather, bool wipersOn) in weathers)
+            {
+                if (cab != null) cab.ConfigureDistancePreview(meadowView, time > 0.86f, time, false, (int)weather, wipersOn);
+                yield return new WaitForSecondsRealtime(6f);
+                yield return Capture(file, 1600, 1000);
+            }
+            if (cab != null) cab.ConfigureDistancePreview(meadowView, false, 0.5f, true, -1, false);
             Debug.Log("SMOKE_EVENT " + planner.At(Find(p => p.IsStation && p.Event != StationEvent.None, 60f)).Event);
             foreach ((string file, float distance, bool lights, float time) in extra)
             {

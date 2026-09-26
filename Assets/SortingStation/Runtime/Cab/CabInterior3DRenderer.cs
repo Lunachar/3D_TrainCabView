@@ -41,6 +41,16 @@ namespace SortingStation
         private Material stateScreenMaterial;
         private readonly List<Transform> gaugeNeedles = new List<Transform>();
         private readonly List<Transform> wiperArms = new List<Transform>();
+        private CabWindscreenWeather windscreenWeather;
+
+        /// <summary>Rain or snow on the windscreen; sheltered (in a tunnel) stops new drops landing.</summary>
+        public void SetWeather(WeatherType weather, float intensity, bool sheltered)
+        {
+            if (windscreenWeather == null && interior != null) windscreenWeather = interior.GetComponentInChildren<CabWindscreenWeather>(true);
+            if (windscreenWeather == null) return;
+            windscreenWeather.SetWeather(weather, intensity);
+            windscreenWeather.SetSheltered(sheltered);
+        }
         private readonly List<Renderer> ceilingLampRenderers = new List<Renderer>();
         private readonly List<Material> ceilingLampMaterials = new List<Material>();
         private readonly Dictionary<CabControlAction, Material> indicatorMaterials = new Dictionary<CabControlAction, Material>();
@@ -246,6 +256,8 @@ namespace SortingStation
             AnimateToggle(CabControlAction.Doors, doorsOpen, deltaTime);
             AnimateToggle(CabControlAction.WindowHeater, windowHeaterOn, deltaTime);
             AnimateWipers(wipersOn, deltaTime);
+            if (windscreenWeather == null && interior != null) windscreenWeather = interior.GetComponentInChildren<CabWindscreenWeather>(true);
+            windscreenWeather?.SetWipers(wipersOn);
             AnimateVigilanceButton(statusText, deltaTime);
             if (keyLight != null)
                 keyLight.intensity = Mathf.MoveTowards(keyLight.intensity, cabinLightOn ? 1.34f : 1.12f, deltaTime * 2.8f);

@@ -23,6 +23,7 @@ namespace SortingStation
         public static Shader Skybox => Resolve(Settings != null ? Settings.SkyboxShader : null, "SortingStation/Sky");
         public static Shader ImpostorBake => Resolve(Settings != null ? Settings.ImpostorBakeShader : null, "SortingStation/ImpostorBake");
         public static Shader Glint => Resolve(Settings != null ? Settings.GlintShader : null, "SortingStation/Glint");
+        public static Shader Windscreen => Resolve(Settings != null ? Settings.WindscreenShader : null, "SortingStation/WindscreenWeather");
         public static Shader Terrain => Resolve(Settings != null ? Settings.TerrainShader : null, "SortingStation/TerrainBlend");
         public static Shader WorldText => Resolve(Settings != null ? Settings.WorldTextShader : null, "SortingStation/WorldText");
 
