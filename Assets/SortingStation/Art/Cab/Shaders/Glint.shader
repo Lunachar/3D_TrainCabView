@@ -80,7 +80,8 @@ Shader "SortingStation/Glint"
                 // Polished rail tops: a mirror of the sky at grazing angles and a blinding streak
                 // where the low sun ahead reflects off them.
                 half fresnel = pow(1.0 - saturate(dot(n, view)), 4.0);
-                half3 sky = GlossyEnvironmentReflection(reflect(-view, n), 0.22h, 1.0h);
+                // The probe is HDR (the sun disc can be far above 1): keep the mirror image within white.
+                half3 sky = min(GlossyEnvironmentReflection(reflect(-view, n), 0.22h, 1.0h), half3(1.0h, 1.0h, 1.0h));
                 colour += sky * (0.25 + fresnel) * _Polish;
                 half streak = pow(saturate(dot(n, halfway)), 90.0) * 6.0 + pow(saturate(dot(n, halfway)), 12.0) * 0.4;
                 colour += sun.color * streak * _Polish * _GlintStrength;

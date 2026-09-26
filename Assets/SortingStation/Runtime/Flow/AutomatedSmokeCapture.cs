@@ -214,6 +214,13 @@ namespace SortingStation
                 yield return new WaitForSecondsRealtime(6f);
                 yield return Capture(file, 1600, 1000);
             }
+            // Rain at a station: people open umbrellas, each in their own time.
+            if (cab != null)
+            {
+                cab.ConfigureDistancePreview(stop - 75f, false, 0.45f, false, (int)WeatherType.Rain, true);
+                yield return new WaitForSecondsRealtime(6f);
+                yield return Capture("51-station-rain.png", 1600, 1000);
+            }
             if (cab != null) cab.ConfigureDistancePreview(meadowView, false, 0.5f, true, -1, false);
 
             // People: waiting on the platform, looked at from the cab, then boarding and alighting.

@@ -283,6 +283,7 @@ namespace SortingStation
             nativeWeather = weather;
             weatherIntensity = intensity;
             precipitation?.SetWeather(weather, intensity);
+            PersonAnimator.Rain = weather == WeatherType.Rain ? intensity : 0f;
         }
 
         private float weatherIntensity;

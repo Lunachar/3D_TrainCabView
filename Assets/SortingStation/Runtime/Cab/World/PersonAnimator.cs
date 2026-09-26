@@ -30,6 +30,16 @@ namespace SortingStation
         private bool seated;
         private float nextCull;
         private bool culled;
+        private GameObject umbrella;
+        private bool umbrellaOpen;
+        private float umbrellaThreshold;
+        private float umbrellaDecideAt = -1f;
+
+        /// <summary>How hard it rains on the people outside (0 dry, 1 downpour); set by the renderer.</summary>
+        public static float Rain { get; set; }
+        /// <summary>False for people whose hands are busy (the station attendant).</summary>
+        public bool UmbrellaAllowed { get; set; } = true;
+        public bool UmbrellaOpen => umbrellaOpen;
 
         /// <summary>Box (parent space, x/z) the person may stroll within.</summary>
         public Vector2 StrollMin { get; set; } = new Vector2(-2f, -2f);
@@ -53,6 +63,8 @@ namespace SortingStation
             home = transform.localPosition;
             homeFacing = transform.localRotation;
             activityEnds = Time.time + (float)random.NextDouble() * 4f;
+            // Some open an umbrella at the first drops, others only in a downpour, a few never.
+            umbrellaThreshold = R(0.1f, 1.3f);
         }
 
         public Transform BoneOf(PersonFactory.Bone bone) => bones[(int)bone];
@@ -99,6 +111,7 @@ namespace SortingStation
                 culled = eye != null && (eye.transform.position - transform.position).sqrMagnitude > 150f * 150f;
             }
             if (culled) return;
+            UpdateUmbrella();
             float dt = Time.deltaTime;
             float t = Time.time + phase;
 
@@ -106,6 +119,100 @@ namespace SortingStation
             else if (Time.time >= activityEnds) ChooseNext();
 
             Pose(t, dt);
+        }
+
+        private void UpdateUmbrella()
+        {
+            bool want = UmbrellaAllowed && Rain > umbrellaThreshold;
+            if (want == umbrellaOpen)
+            {
+                umbrellaDecideAt = -1f;
+                return;
+            }
+            // Everybody reacts in their own time.
+            if (umbrellaDecideAt < 0f)
+            {
+                umbrellaDecideAt = Time.time + R(0.3f, 4f);
+                return;
+            }
+            if (Time.time < umbrellaDecideAt) return;
+            umbrellaDecideAt = -1f;
+            umbrellaOpen = want;
+            if (umbrella == null && want)
+            {
+                umbrella = new GameObject("Umbrella", typeof(MeshFilter), typeof(MeshRenderer));
+                umbrella.transform.SetParent(transform, false);
+                umbrella.transform.localPosition = new Vector3(0.12f, look.Height + 0.14f, 0.16f);
+                umbrella.transform.localRotation = Quaternion.Euler(-6f, 0f, -6f);
+                umbrella.GetComponent<MeshFilter>().sharedMesh = UmbrellaMesh(random.Next(0, UmbrellaColours.Length));
+                MeshRenderer renderer = umbrella.GetComponent<MeshRenderer>();
+                renderer.sharedMaterial = WorldPalette.Material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            if (umbrella != null) umbrella.SetActive(want);
+        }
+
+        private static readonly Color[] UmbrellaColours =
+        {
+            new Color(0.05f, 0.05f, 0.06f), new Color(0.08f, 0.12f, 0.3f), new Color(0.7f, 0.1f, 0.12f),
+            new Color(0.12f, 0.3f, 0.18f), new Color(0.75f, 0.68f, 0.52f), new Color(0.9f, 0.75f, 0.2f), new Color(0.55f, 0.3f, 0.6f)
+        };
+        private static readonly Mesh[] UmbrellaMeshes = new Mesh[UmbrellaColours.Length];
+
+        /// <summary>An open umbrella: an eight-rib canopy (seen from above and below) on a stick.</summary>
+        private static Mesh UmbrellaMesh(int colour)
+        {
+            if (UmbrellaMeshes[colour] != null) return UmbrellaMeshes[colour];
+            const int ribs = 8;
+            const float radius = 0.5f, rise = 0.2f, stick = 0.78f;
+            System.Collections.Generic.List<Vector3> v = new System.Collections.Generic.List<Vector3>();
+            System.Collections.Generic.List<Vector3> n = new System.Collections.Generic.List<Vector3>();
+            System.Collections.Generic.List<Vector2> uv = new System.Collections.Generic.List<Vector2>();
+            System.Collections.Generic.List<int> tri = new System.Collections.Generic.List<int>();
+            Vector2 cloth = WorldPalette.Uv(UmbrellaColours[colour], 0.45f);
+            Vector2 under = WorldPalette.Uv(UmbrellaColours[colour] * 0.6f, 0.2f);
+            Vector2 metal = WorldPalette.Uv(new Color(0.2f, 0.2f, 0.22f), 0.6f);
+            Vector3 apex = new Vector3(0f, rise, 0f);
+            for (int side = 0; side < 2; side++)
+                for (int k = 0; k < ribs; k++)
+                {
+                    float a0 = k * Mathf.PI * 2f / ribs, a1 = (k + 1) * Mathf.PI * 2f / ribs;
+                    // The cloth sags a little between the ribs.
+                    Vector3 p0 = new Vector3(Mathf.Cos(a0) * radius, 0f, Mathf.Sin(a0) * radius);
+                    Vector3 p1 = new Vector3(Mathf.Cos(a1) * radius, 0f, Mathf.Sin(a1) * radius);
+                    Vector3 mid = (p0 + p1) * 0.46f + Vector3.up * 0.02f;
+                    foreach ((Vector3 a, Vector3 b) in new[] { (p0, mid), (mid, p1) })
+                    {
+                        Vector3 normal = Vector3.Cross(b - apex, a - apex).normalized;
+                        if (normal.y < 0f) normal = -normal;
+                        if (side == 1) normal = -normal;
+                        int start = v.Count;
+                        v.Add(apex); v.Add(a); v.Add(b);
+                        for (int i = 0; i < 3; i++) { n.Add(normal); uv.Add(side == 0 ? cloth : under); }
+                        bool up = Vector3.Dot(Vector3.Cross(a - apex, b - apex), normal) > 0f;
+                        if (up) tri.AddRange(new[] { start, start + 1, start + 2 });
+                        else tri.AddRange(new[] { start, start + 2, start + 1 });
+                    }
+                }
+            // Stick and tip: a thin square rod.
+            foreach (Vector3 dir in new[] { Vector3.right, Vector3.forward, Vector3.left, Vector3.back })
+            {
+                Vector3 side = Vector3.Cross(Vector3.up, dir) * 0.012f;
+                Vector3 o = dir * 0.012f;
+                int start = v.Count;
+                v.Add(o - side + Vector3.up * (rise + 0.08f)); v.Add(o + side + Vector3.up * (rise + 0.08f));
+                v.Add(o + side + Vector3.down * stick); v.Add(o - side + Vector3.down * stick);
+                for (int i = 0; i < 4; i++) { n.Add(dir); uv.Add(metal); }
+                tri.AddRange(new[] { start, start + 2, start + 1, start, start + 3, start + 2 });
+            }
+            Mesh mesh = new Mesh { name = "Umbrella" };
+            mesh.SetVertices(v);
+            mesh.SetNormals(n);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(tri, 0);
+            mesh.RecalculateBounds();
+            UmbrellaMeshes[colour] = mesh;
+            return mesh;
         }
 
         private void StepWalk(float dt)
@@ -254,6 +361,13 @@ namespace SortingStation
                     upperL = Q(-15f + Mathf.Sin(t * 2.7f) * 8f, 0f, -8f);
                     head = Q(Mathf.Sin(t * 2.2f) * 5f, Mathf.Sin(t * 0.9f) * 12f, 0f);
                     break;
+            }
+
+            // An open umbrella is held up in the right hand whatever else the person does.
+            if (umbrellaOpen)
+            {
+                upperR = Q(-32f, 0f, 16f);
+                foreR = Q(-78f, 0f, -22f);
             }
 
             // The arriving train draws everyone's eyes.

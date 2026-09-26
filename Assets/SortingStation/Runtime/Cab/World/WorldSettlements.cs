@@ -886,6 +886,7 @@ namespace SortingStation
 
         private void Attendant(PersonAnimator person, Vector3 spot)
         {
+            person.UmbrellaAllowed = false;
             // A short beat up and down the platform end.
             person.StrollMin = new Vector2(PlatformEdge - 2.4f, spot.z - 3f);
             person.StrollMax = new Vector2(PlatformEdge - 0.9f, spot.z + 1.5f);
