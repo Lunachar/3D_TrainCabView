@@ -92,14 +92,21 @@ namespace SortingStation
             GameObject car = new GameObject("RailCar_" + kind, typeof(MeshFilter), typeof(MeshRenderer));
             car.transform.SetParent(parent, false);
             Transform body = car.transform;
-            car.GetComponent<MeshFilter>().sharedMesh = GetMesh(kind, reversed);
-            car.GetComponent<MeshRenderer>().sharedMaterials = Materials(kind, livery);
+            car.GetComponent<MeshFilter>().sharedMesh = GetMesh(kind, reversed, livery);
+            car.GetComponent<MeshRenderer>().sharedMaterials = Materials();
             return car;
         }
 
-        public static Material[] Materials(RailCarKind kind, int livery)
+        /// <summary>Paint, accent, glass and underframe come from the palette; lamps and lit windows glow.</summary>
+        public static Material[] Materials() => new[]
         {
-            Color main;
+            WorldPalette.Material,
+            WorldMaterials.Headlamp,
+            WorldMaterials.Glow("RailWindows", new Color(1f, 0.9f, 0.7f), 0f)
+        };
+
+        private static void Livery(RailCarKind kind, int livery, out Color main, out Color accent)
+        {
             switch (kind)
             {
                 case RailCarKind.ElectricLoco: main = livery % 3 == 0 ? new Color(0.72f, 0.12f, 0.10f) : livery % 3 == 1 ? new Color(0.18f, 0.40f, 0.26f) : new Color(0.20f, 0.30f, 0.55f); break;
@@ -112,29 +119,21 @@ namespace SortingStation
                 case RailCarKind.ContainerFlat: main = new Color(0.25f, 0.25f, 0.26f); break;
                 default: main = new Color(0.48f, 0.22f, 0.14f); break;
             }
-            Color accent = kind == RailCarKind.ContainerFlat ? VehicleFactory.Paints[Mathf.Abs(livery * 3 + 1) % VehicleFactory.Paints.Length]
+            accent = kind == RailCarKind.ContainerFlat ? VehicleFactory.Paints[Mathf.Abs(livery * 3 + 1) % VehicleFactory.Paints.Length]
                 : kind == RailCarKind.EmuHead || kind == RailCarKind.EmuMiddle ? new Color(0.85f, 0.2f, 0.12f) : new Color(0.88f, 0.86f, 0.80f);
-            return new[]
-            {
-                WorldMaterials.Plain("RailPaint", main, 0.45f, 0.25f),
-                WorldMaterials.Plain("RailAccent", accent, 0.45f, 0.2f),
-                WorldMaterials.Plain("RailGlass", new Color(0.05f, 0.07f, 0.09f), 0.9f, 0.2f),
-                WorldMaterials.Plain("RailUnder", new Color(0.12f, 0.11f, 0.10f), 0.3f, 0.4f),
-                WorldMaterials.Headlamp,
-                WorldMaterials.Glow("RailWindows", new Color(1f, 0.9f, 0.7f), 0f)
-            };
         }
 
-        public static Mesh GetMesh(RailCarKind kind, bool reversed)
+        public static Mesh GetMesh(RailCarKind kind, bool reversed, int livery = 0)
         {
-            string key = kind + (reversed ? "_r" : "");
+            Livery(kind, livery, out Color main, out Color accent);
+            string key = kind + (reversed ? "_r" : "") + ColorUtility.ToHtmlStringRGB(main) + ColorUtility.ToHtmlStringRGB(accent);
             if (Meshes.TryGetValue(key, out Mesh cached) && cached != null) return cached;
-            Mesh mesh = Build(kind, reversed);
+            Mesh mesh = Build(kind, reversed, main, accent);
             Meshes[key] = mesh;
             return mesh;
         }
 
-        private static Mesh Build(RailCarKind kind, bool reversed)
+        private static Mesh Build(RailCarKind kind, bool reversed, Color mainColour, Color accentColour)
         {
             float length = Length(kind);
             float half = length * 0.5f;
@@ -237,9 +236,18 @@ namespace SortingStation
                 for (int s = -1; s <= 1; s += 2)
                     under.AddCylinder(new Vector3(s * 0.88f, 1.05f, z), 0.18f, 0.5f, 8, Quaternion.Euler(90f, 0f, 0f));
 
-            CombineInstance[] parts = { Part(main), Part(accent), Part(glass), Part(under), Part(lamp), Part(lit) };
+            CombineInstance[] painted =
+            {
+                Part(main, WorldPalette.Uv(mainColour, 0.45f)), Part(accent, WorldPalette.Uv(accentColour, 0.45f)),
+                Part(glass, WorldPalette.Uv(new Color(0.05f, 0.07f, 0.09f), 0.9f)), Part(under, WorldPalette.Uv(new Color(0.12f, 0.11f, 0.10f), 0.3f))
+            };
+            Mesh bodyMesh = new Mesh { name = "RailCarBody" };
+            bodyMesh.CombineMeshes(painted, true, false);
+            CombineInstance[] parts = { new CombineInstance { mesh = bodyMesh, transform = Matrix4x4.identity }, Part(lamp, Vector2.zero), Part(lit, Vector2.zero) };
             Mesh mesh = new Mesh { name = "RailCar_" + kind };
             mesh.CombineMeshes(parts, false, false);
+            foreach (CombineInstance part in painted) DestroyTemporary(part.mesh);
+            foreach (CombineInstance part in parts) DestroyTemporary(part.mesh);
             mesh.RecalculateBounds();
             return mesh;
         }
@@ -251,15 +259,25 @@ namespace SortingStation
             builder.AddBox(new Vector3(0f, roof + 1.45f, z), new Vector3(1.9f, 0.06f, 0.2f), Quaternion.identity);
         }
 
-        private static CombineInstance Part(CabMeshBuilder builder)
+        private static CombineInstance Part(CabMeshBuilder builder, Vector2 paletteUv)
         {
             Mesh part = builder.Build("RailCarPart");
             if (part.vertexCount == 0)
             {
                 part.vertices = new[] { Vector3.zero, Vector3.zero, Vector3.zero };
+                part.normals = new[] { Vector3.up, Vector3.up, Vector3.up };
                 part.triangles = new[] { 0, 1, 2 };
             }
+            Vector2[] uvs = new Vector2[part.vertexCount];
+            for (int i = 0; i < uvs.Length; i++) uvs[i] = paletteUv;
+            part.uv = uvs;
             return new CombineInstance { mesh = part, transform = Matrix4x4.identity };
+        }
+
+        private static void DestroyTemporary(Mesh mesh)
+        {
+            if (Application.isPlaying) Object.Destroy(mesh);
+            else Object.DestroyImmediate(mesh);
         }
     }
 }

@@ -286,29 +286,12 @@ namespace SortingStation
             Debug.Log("HEADLIGHT_RATIO=" + LowerCentreBrightnessRatio(
                 Path.Combine(outputDirectory, "13-night-lights-on.png"), Path.Combine(outputDirectory, "12-night-lights-off.png")));
 
-            // Drive: 25 m/s for 30 s with chunks streamed in the background; frame times logged.
-            {
-                if (cab != null) cab.ConfigureDistancePreview(1000f, false, 0.5f, true, -1, false);
-                yield return new WaitForSecondsRealtime(1f);
-                float worst = 0f, total = 0f;
-                int frames = 0, slow = 0;
-                float until = Time.realtimeSinceStartup + 30f;
-                while (Time.realtimeSinceStartup < until)
-                {
-                    float dt = Time.unscaledDeltaTime;
-                    view.Streamed.Advance(25f * dt);
-                    if (frames > 5)
-                    {
-                        worst = Mathf.Max(worst, dt);
-                        total += dt;
-                        if (dt > 1f / 30f) slow++;
-                    }
-                    frames++;
-                    yield return null;
-                }
-                Debug.Log("DRIVE frames=" + frames + " avgFps=" + ((frames - 6) / Mathf.Max(0.01f, total)).ToString("0") + " worstMs=" +
-                          (worst * 1000f).ToString("0") + " slowFrames=" + slow + " chunks=" + view.Streamed.LoadedChunkCount);
-            }
+            // Drives: 25 m/s with chunks streamed in the background; frame times and render load logged.
+            yield return Drive("fields-noon", 1000f, noon, false, cab, view);
+            yield return Drive("city-night", dense - 300f, midnight, true, cab, view);
+            if (cab != null) cab.ConfigureDistancePreview(stop, false, noon, true, -1, false);
+            yield return new WaitForSecondsRealtime(1.5f);
+            LogRenderBreakdown("station");
 
             // Long run: 30 km in 60 m steps, building every chunk on the way.
             float soakStart = Time.realtimeSinceStartup;
@@ -355,6 +338,57 @@ namespace SortingStation
                 return count > 0 ? sum / count : 0f;
             }
             return Mean(litPath) / Mathf.Max(0.001f, Mean(darkPath));
+        }
+
+        private static IEnumerator Drive(string label, float start, float time, bool lights, CabRideController cab, CabWorld3DRenderer view)
+        {
+            if (cab != null) cab.ConfigureDistancePreview(start, lights, time, true, -1, false);
+            yield return new WaitForSecondsRealtime(1f);
+            float worst = 0f, total = 0f;
+            int frames = 0, slow = 0;
+            long maxDraws = 0, maxSetPass = 0, maxTriangles = 0;
+            Unity.Profiling.ProfilerRecorder draws = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
+            Unity.Profiling.ProfilerRecorder setPass = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "SetPass Calls Count");
+            Unity.Profiling.ProfilerRecorder triangles = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Triangles Count");
+            float until = Time.realtimeSinceStartup + 20f;
+            while (Time.realtimeSinceStartup < until)
+            {
+                float dt = Time.unscaledDeltaTime;
+                view.Streamed.Advance(25f * dt);
+                if (frames > 5)
+                {
+                    worst = Mathf.Max(worst, dt);
+                    total += dt;
+                    if (dt > 1f / 30f) slow++;
+                    maxDraws = Math.Max(maxDraws, draws.LastValue);
+                    maxSetPass = Math.Max(maxSetPass, setPass.LastValue);
+                    maxTriangles = Math.Max(maxTriangles, triangles.LastValue);
+                }
+                frames++;
+                yield return null;
+            }
+            Debug.Log("DRIVE " + label + " frames=" + frames + " avgFps=" + ((frames - 6) / Mathf.Max(0.01f, total)).ToString("0") +
+                      " worstMs=" + (worst * 1000f).ToString("0") + " slowFrames=" + slow + " chunks=" + view.Streamed.LoadedChunkCount +
+                      " maxDraws=" + maxDraws + " maxSetPass=" + maxSetPass + " maxTrianglesK=" + (maxTriangles / 1000));
+            draws.Dispose();
+            setPass.Dispose();
+            triangles.Dispose();
+            LogRenderBreakdown(label);
+        }
+
+        /// <summary>Which kinds of objects the main camera draws most (renderer submeshes, by name).</summary>
+        private static void LogRenderBreakdown(string label)
+        {
+            System.Collections.Generic.Dictionary<string, int> groups = new System.Collections.Generic.Dictionary<string, int>();
+            foreach (Renderer renderer in FindObjectsOfType<Renderer>())
+            {
+                if (!renderer.enabled || !renderer.isVisible || !renderer.gameObject.activeInHierarchy) continue;
+                string key = renderer.GetType().Name + ":" + System.Text.RegularExpressions.Regex.Replace(renderer.name, "[0-9_]+$", "");
+                groups.TryGetValue(key, out int count);
+                groups[key] = count + renderer.sharedMaterials.Length;
+            }
+            Debug.Log("RENDER_BREAKDOWN " + label + " total=" + groups.Values.Sum() + " " +
+                      string.Join(", ", groups.OrderByDescending(g => g.Value).Take(25).Select(g => g.Key + "=" + g.Value)));
         }
 
         private IEnumerator CaptureTrackPreview()

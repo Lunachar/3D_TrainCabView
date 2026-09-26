@@ -18,7 +18,8 @@ namespace SortingStation
     /// <summary>
     /// Road vehicles built from side silhouettes: the body profile is extruded across the car's
     /// width, the glasshouse sits a little narrower on top, then wheels, lamps and bumpers.
-    /// One mesh with a submesh per material, cached per type and paint.
+    /// Body, glass, trim and chrome are coloured through <see cref="WorldPalette"/>, so a car is
+    /// one mesh with three submeshes (palette, headlamps, tail lamps), cached per type and paint.
     /// </summary>
     public static class VehicleFactory
     {
@@ -52,32 +53,27 @@ namespace SortingStation
             vehicle.transform.SetParent(parent, false);
             vehicle.GetComponent<MeshFilter>().sharedMesh = GetMesh(type, paint);
             MeshRenderer renderer = vehicle.GetComponent<MeshRenderer>();
-            Color body = type == VehicleType.Bus ? (paint % 2 == 0 ? new Color(0.85f, 0.75f, 0.2f) : new Color(0.2f, 0.45f, 0.75f)) : Paints[Mathf.Abs(paint) % Paints.Length];
-            renderer.sharedMaterials = new[]
-            {
-                WorldMaterials.Plain("CarPaint", body, 0.72f, 0.35f),
-                WorldMaterials.Plain("CarGlass", new Color(0.06f, 0.08f, 0.10f), 0.92f, 0.2f),
-                WorldMaterials.Plain("CarTrim", new Color(0.05f, 0.05f, 0.05f), 0.25f),
-                WorldMaterials.Plain("CarChrome", new Color(0.7f, 0.7f, 0.72f), 0.8f, 0.9f),
-                WorldMaterials.Headlamp,
-                WorldMaterials.TailLamp
-            };
+            renderer.sharedMaterials = new[] { WorldPalette.Material, WorldMaterials.Headlamp, WorldMaterials.TailLamp };
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return vehicle;
         }
 
         public static Mesh GetMesh(VehicleType type, int paint)
         {
-            int key = (int)type;
+            paint = Mathf.Abs(paint) % Paints.Length;
+            int key = (int)type * 100 + paint;
             if (Meshes.TryGetValue(key, out Mesh cached) && cached != null) return cached;
-            Mesh mesh = Build(type);
+            Mesh mesh = Build(type, BodyColour(type, paint));
             Meshes[key] = mesh;
             return mesh;
         }
 
         public static int TriangleCount(VehicleType type) => GetMesh(type, 0).triangles.Length / 3;
 
-        private static Mesh Build(VehicleType type)
+        private static Color BodyColour(VehicleType type, int paint) =>
+            type == VehicleType.Bus ? (paint % 2 == 0 ? new Color(0.85f, 0.75f, 0.2f) : new Color(0.2f, 0.45f, 0.75f)) : Paints[paint];
+
+        private static Mesh Build(VehicleType type, Color bodyColour)
         {
             Vector3 size = Size(type);
             float w = size.x, h = size.y, l = size.z;
@@ -148,12 +144,21 @@ namespace SortingStation
                     chrome.AddCylinder(hub + new Vector3(s * 0.125f, 0f, 0f), wheelRadius * 0.55f, 0.02f, 10, Quaternion.Euler(0f, 0f, 90f));
                 }
 
+            CombineInstance[] painted =
+            {
+                Part(paint, "Paint", WorldPalette.Uv(bodyColour, 0.72f)), Part(glass, "Glass", WorldPalette.Uv(new Color(0.06f, 0.08f, 0.10f), 0.92f)),
+                Part(trim, "Trim", WorldPalette.Uv(new Color(0.05f, 0.05f, 0.05f), 0.25f)), Part(chrome, "Chrome", WorldPalette.Uv(new Color(0.7f, 0.7f, 0.72f), 0.85f))
+            };
+            Mesh bodyMesh = new Mesh { name = "VehicleBody" };
+            bodyMesh.CombineMeshes(painted, true, false);
             CombineInstance[] parts =
             {
-                Part(paint, "Paint"), Part(glass, "Glass"), Part(trim, "Trim"), Part(chrome, "Chrome"), Part(head, "Head"), Part(tail, "Tail")
+                new CombineInstance { mesh = bodyMesh, transform = Matrix4x4.identity }, Part(head, "Head", Vector2.zero), Part(tail, "Tail", Vector2.zero)
             };
             Mesh mesh = new Mesh { name = "Vehicle_" + type };
             mesh.CombineMeshes(parts, false, false);
+            foreach (CombineInstance part in painted) DestroyTemporary(part.mesh);
+            foreach (CombineInstance part in parts) DestroyTemporary(part.mesh);
             mesh.RecalculateBounds();
             return mesh;
         }
@@ -167,16 +172,26 @@ namespace SortingStation
             }
         }
 
-        private static CombineInstance Part(CabMeshBuilder builder, string name)
+        private static CombineInstance Part(CabMeshBuilder builder, string name, Vector2 paletteUv)
         {
             Mesh part = builder.Build(name);
             // An empty part still needs a (degenerate) triangle so the submesh indices line up.
             if (part.vertexCount == 0)
             {
                 part.vertices = new[] { Vector3.zero, Vector3.zero, Vector3.zero };
+                part.normals = new[] { Vector3.up, Vector3.up, Vector3.up };
                 part.triangles = new[] { 0, 1, 2 };
             }
+            Vector2[] uvs = new Vector2[part.vertexCount];
+            for (int i = 0; i < uvs.Length; i++) uvs[i] = paletteUv;
+            part.uv = uvs;
             return new CombineInstance { mesh = part, transform = Matrix4x4.identity };
+        }
+
+        private static void DestroyTemporary(Mesh mesh)
+        {
+            if (Application.isPlaying) Object.Destroy(mesh);
+            else Object.DestroyImmediate(mesh);
         }
     }
 }

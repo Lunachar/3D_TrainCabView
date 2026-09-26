@@ -83,7 +83,6 @@ namespace SortingStation
         }
 
         private const int Skin = 0, Top = 1, Bottom = 2, Hair = 3, Shoes = 4, Accent = 5;
-        private static readonly Dictionary<string, Material> Materials = new Dictionary<string, Material>();
 
         public static PersonAnimator Create(Transform parent, string name, Vector3 localPosition, PersonLook look)
         {
@@ -181,49 +180,31 @@ namespace SortingStation
                 mesh.Box(Bone.Hips, Accent, new Vector3(0.2f * s * w, 0.08f * s, 0.02f), new Vector3(0.06f, 0.22f, 0.26f) * s);
                 mesh.Box(Bone.Chest, Accent, new Vector3(0.05f, 0.08f * s, 0.0f), new Vector3(0.03f, 0.5f, 0.02f) * s);
             }
-            GameObject suitcase = null;
-            mesh.Emit(name, Materials4(look));
+            // A wheeled suitcase at the right side, part of the same mesh.
+            if (look.Carry == 3)
+            {
+                mesh.Box(Bone.Root, Accent, new Vector3(0.32f * s, 0.32f, -0.25f), new Vector3(0.22f, 0.56f, 0.38f));
+                mesh.Box(Bone.Root, Shoes, new Vector3(0.32f * s, 0.66f, -0.25f), new Vector3(0.03f, 0.14f, 0.03f));
+            }
+            mesh.Emit(name, Colours(look));
 
             PersonAnimator animator = person.AddComponent<PersonAnimator>();
             animator.Configure(bones, look);
-            if (look.Carry == 3)
-            {
-                // A wheeled suitcase that follows the right hand.
-                suitcase = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Collider collider = suitcase.GetComponent<Collider>();
-                if (Application.isPlaying) Object.Destroy(collider);
-                else Object.DestroyImmediate(collider);
-                suitcase.name = "Suitcase";
-                suitcase.transform.SetParent(person.transform, false);
-                suitcase.transform.localPosition = new Vector3(0.32f * s, 0.3f, -0.25f);
-                suitcase.transform.localScale = new Vector3(0.24f, 0.6f, 0.4f);
-                suitcase.GetComponent<Renderer>().sharedMaterial = Material("Accent", look.Accent * 0.8f, 0.5f);
-            }
             return animator;
         }
 
-        private static Material[] Materials4(PersonLook look)
+        /// <summary>Palette cells for skin, top, bottom, hair, shoes and accent.</summary>
+        private static Vector2[] Colours(PersonLook look)
         {
             return new[]
             {
-                Material("Skin", look.Skin, 0.35f),
-                Material("Top", look.Top, 0.2f),
-                Material("Bottom", look.Bottom, 0.2f),
-                Material("Hair", look.HairColour, 0.3f),
-                Material("Shoes", look.Shoes, 0.4f),
-                Material("Accent", look.Accent, 0.3f)
+                WorldPalette.Uv(look.Skin, 0.35f),
+                WorldPalette.Uv(look.Top, 0.2f),
+                WorldPalette.Uv(look.Bottom, 0.2f),
+                WorldPalette.Uv(look.HairColour, 0.3f),
+                WorldPalette.Uv(look.Shoes, 0.4f),
+                WorldPalette.Uv(look.Accent, 0.3f)
             };
-        }
-
-        private static Material Material(string part, Color colour, float smoothness)
-        {
-            // Colours are quantised a little so crowds share a modest number of materials.
-            Color q = new Color(Mathf.Round(colour.r * 20f) / 20f, Mathf.Round(colour.g * 20f) / 20f, Mathf.Round(colour.b * 20f) / 20f);
-            string key = part + ColorUtility.ToHtmlStringRGB(q);
-            if (Materials.TryGetValue(key, out Material cached) && cached != null) return cached;
-            Material material = CabShaders.CreateLit("Person" + key, q, smoothness);
-            Materials[key] = material;
-            return material;
         }
 
         /// <summary>Collects body parts per material and bone, then builds one skinned mesh.</summary>
@@ -337,13 +318,17 @@ namespace SortingStation
                 }
             }
 
-            public void Emit(string name, Material[] materials)
+            public void Emit(string name, Vector2[] colours)
             {
                 Mesh mesh = new Mesh { name = "Person_" + name };
                 mesh.SetVertices(vertices);
                 mesh.SetNormals(normals);
                 mesh.boneWeights = weights.ToArray();
-                mesh.subMeshCount = triangles.Length;
+                // Every part's vertices point at its colour in the shared palette: one submesh, one draw.
+                Vector2[] uvs = new Vector2[vertices.Count];
+                for (int m = 0; m < triangles.Length; m++)
+                    foreach (int index in triangles[m]) uvs[index] = colours[m];
+                mesh.uv = uvs;
                 // Face every triangle outward (along its vertex normals), whatever order it was added in.
                 for (int m = 0; m < triangles.Length; m++)
                 {
@@ -360,7 +345,9 @@ namespace SortingStation
                         }
                     }
                 }
-                for (int i = 0; i < triangles.Length; i++) mesh.SetTriangles(triangles[i], i);
+                List<int> all = new List<int>();
+                foreach (List<int> list in triangles) all.AddRange(list);
+                mesh.SetTriangles(all, 0);
                 Matrix4x4[] bind = new Matrix4x4[bones.Length];
                 for (int i = 0; i < bones.Length; i++) bind[i] = bones[i].worldToLocalMatrix * root.localToWorldMatrix;
                 mesh.bindposes = bind;
@@ -371,7 +358,7 @@ namespace SortingStation
                 renderer.sharedMesh = mesh;
                 renderer.bones = bones;
                 renderer.rootBone = bones[(int)Bone.Hips];
-                renderer.sharedMaterials = materials;
+                renderer.sharedMaterial = WorldPalette.Material;
                 renderer.updateWhenOffscreen = false;
                 renderer.localBounds = new Bounds(new Vector3(0f, -0.1f, 0f), new Vector3(1.4f, 2.4f, 1.4f));
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

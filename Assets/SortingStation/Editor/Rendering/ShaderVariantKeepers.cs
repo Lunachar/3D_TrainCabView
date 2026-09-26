@@ -31,6 +31,12 @@ namespace SortingStation.EditorTools
             });
             Make(lit, "LitEmission", material => material.EnableKeyword("_EMISSION"));
             Make(lit, "LitNormal", material => material.EnableKeyword("_NORMALMAP"));
+            // WorldPalette: smoothness from the albedo alpha.
+            Make(lit, "LitAlbedoSmoothness", material =>
+            {
+                material.SetFloat("_SmoothnessTextureChannel", 1f);
+                material.EnableKeyword("_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A");
+            });
             Make(lit, "LitPbr", material =>
             {
                 material.EnableKeyword("_NORMALMAP");
