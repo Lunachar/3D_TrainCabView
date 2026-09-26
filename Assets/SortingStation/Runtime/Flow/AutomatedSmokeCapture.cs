@@ -276,6 +276,30 @@ namespace SortingStation
             Debug.Log("HEADLIGHT_RATIO=" + LowerCentreBrightnessRatio(
                 Path.Combine(outputDirectory, "13-night-lights-on.png"), Path.Combine(outputDirectory, "12-night-lights-off.png")));
 
+            // Drive: 25 m/s for 30 s with chunks streamed in the background; frame times logged.
+            {
+                if (cab != null) cab.ConfigureDistancePreview(1000f, false, 0.5f, true, -1, false);
+                yield return new WaitForSecondsRealtime(1f);
+                float worst = 0f, total = 0f;
+                int frames = 0, slow = 0;
+                float until = Time.realtimeSinceStartup + 30f;
+                while (Time.realtimeSinceStartup < until)
+                {
+                    float dt = Time.unscaledDeltaTime;
+                    view.Streamed.Advance(25f * dt);
+                    if (frames > 5)
+                    {
+                        worst = Mathf.Max(worst, dt);
+                        total += dt;
+                        if (dt > 1f / 30f) slow++;
+                    }
+                    frames++;
+                    yield return null;
+                }
+                Debug.Log("DRIVE frames=" + frames + " avgFps=" + ((frames - 6) / Mathf.Max(0.01f, total)).ToString("0") + " worstMs=" +
+                          (worst * 1000f).ToString("0") + " slowFrames=" + slow + " chunks=" + view.Streamed.LoadedChunkCount);
+            }
+
             // Long run: 30 km in 60 m steps, building every chunk on the way.
             float soakStart = Time.realtimeSinceStartup;
             long memoryBefore = GC.GetTotalMemory(true);

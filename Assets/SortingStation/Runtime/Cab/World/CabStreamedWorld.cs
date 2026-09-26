@@ -33,6 +33,7 @@ namespace SortingStation
         private float originDistance;
         private Coroutine building;
         private int buildingIndex = -1;
+        private WorldChunk buildingChunk;
         private SeasonType season = SeasonType.Summer;
         private float density = 1f;
         private WorldChunkKind currentKind;
@@ -166,7 +167,8 @@ namespace SortingStation
                 if (immediate || index <= current + 1)
                 {
                     // The view must never show a hole: nearby chunks are built on the spot.
-                    if (buildingIndex == index) StopBuilding();
+                    // The builder is shared, so a chunk half-built in the background is dropped (and rebuilt later).
+                    StopBuilding();
                     BuildNow(index);
                 }
                 else if (building == null && host != null && host.isActiveAndEnabled && Application.isPlaying)
@@ -188,11 +190,13 @@ namespace SortingStation
         private IEnumerator BuildLater(int index)
         {
             WorldChunk chunk = new WorldChunk();
+            buildingChunk = chunk;
             IEnumerator steps = builder.Build(planner.Get(index), originX, originZ, routeRoot, chunk);
             double builtForX = originX, builtForZ = originZ;
             while (steps.MoveNext()) yield return null;
             building = null;
             buildingIndex = -1;
+            buildingChunk = null;
             if (chunks.ContainsKey(index))
             {
                 chunk.Destroy();
@@ -219,6 +223,8 @@ namespace SortingStation
             if (building != null && host != null) host.StopCoroutine(building);
             building = null;
             buildingIndex = -1;
+            buildingChunk?.Destroy();
+            buildingChunk = null;
         }
 
         // ---- Pose and origin --------------------------------------------------------------------

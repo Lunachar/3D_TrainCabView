@@ -81,14 +81,17 @@ namespace SortingStation
             yield return null;
 
             BuildTrack();
+            yield return null;
             BuildCatenary();
             yield return null;
 
-            BuildStructures();
+            IEnumerator structures = BuildStructures();
+            while (structures.MoveNext()) yield return null;
             Emit(root.transform, "Built");
             yield return null;
 
-            BuildVegetation(root.transform);
+            IEnumerator plants = BuildVegetation(root.transform);
+            while (plants.MoveNext()) yield return null;
             chunk.Complete = true;
         }
 
@@ -232,7 +235,7 @@ namespace SortingStation
 
         // ---- Plants --------------------------------------------------------------------------
 
-        private void BuildVegetation(Transform root)
+        private IEnumerator BuildVegetation(Transform root)
         {
             WorldMeshSet near = new WorldMeshSet();
             List<Vector3> cardVertices = new List<Vector3>(), nearCardVertices = new List<Vector3>();
@@ -266,6 +269,8 @@ namespace SortingStation
                     }
                 }
                 x += stepX;
+                // A few bands of trees per frame.
+                if (Mathf.Repeat(x, 60f) < stepX) yield return null;
             }
 
             chunk.NearDetail = new GameObject("NearTrees");
@@ -273,6 +278,7 @@ namespace SortingStation
             foreach (Renderer renderer in near.Emit(chunk.NearDetail.transform, "Tree"))
                 chunk.Meshes.Add(renderer.GetComponent<MeshFilter>().sharedMesh);
             chunk.NearCards = EmitCards(root, "NearTreeCards", nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles);
+            yield return null;
             EmitCards(root, "TreeCards", cardVertices, cardNormals, cardUvs, cardTriangles);
             BuildGrass(root);
             if (chunk.NearCards != null) chunk.NearCards.SetActive(false);

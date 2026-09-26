@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -14,13 +15,15 @@ namespace SortingStation
         public const float PlatformEdge = -1.95f;
         public const float PlatformWidth = 5.1f;
 
-        private void BuildStructures()
+        /// <summary>Structures one piece at a time, so a chunk built while driving never stalls a frame.</summary>
+        private IEnumerator BuildStructures()
         {
-            if (plan.Kind == WorldChunkKind.Tunnel) BuildTunnel();
-            if (plan.Kind == WorldChunkKind.Water) BuildRiverAndBridge();
-            if (plan.IsStation) BuildStation();
-            if (plan.Crossing) BuildCrossing();
+            if (plan.Kind == WorldChunkKind.Tunnel) { BuildTunnel(); yield return null; }
+            if (plan.Kind == WorldChunkKind.Water) { BuildRiverAndBridge(); yield return null; }
+            if (plan.IsStation) { BuildStation(); yield return null; }
+            if (plan.Crossing) { BuildCrossing(); yield return null; }
             BuildRoads();
+            yield return null;
             BuildTrackside();
             // Each side of the line gets the buildings of its own kind of scenery.
             foreach (WorldChunkKind kind in plan.Kind == plan.RightKind ? new[] { plan.Kind } : new[] { plan.Kind, plan.RightKind })
@@ -36,6 +39,7 @@ namespace SortingStation
                     case WorldChunkKind.Foothills: BuildBoulders(6); break;
                     case WorldChunkKind.Tunnel: BuildBoulders(4); break;
                 }
+                yield return null;
             }
             sideFilter = 0;
             BuildFeatures();
