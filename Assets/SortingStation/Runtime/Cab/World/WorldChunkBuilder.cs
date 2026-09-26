@@ -50,6 +50,9 @@ namespace SortingStation
         }
 
         /// <summary>Builds a chunk (the coroutine yields between stages).</summary>
+        /// <summary>Which part of the chunk the build is on (for benchmarks).</summary>
+        public string Stage { get; private set; }
+
         public IEnumerator Build(WorldChunkPlan chunkPlan, double floatingOriginX, double floatingOriginZ, Transform parent, WorldChunk target)
         {
             plan = chunkPlan;
@@ -70,7 +73,10 @@ namespace SortingStation
             root.transform.localPosition = chunkOrigin;
             chunk.Root = root;
 
-            Mesh ground = terrain.BuildChunkMesh(path, plan, originX, originZ, chunkOrigin);
+            Stage = "terrain";
+            Mesh ground = null;
+            IEnumerator groundSteps = terrain.BuildChunkMeshSteps(path, plan, originX, originZ, chunkOrigin, mesh => ground = mesh);
+            while (groundSteps.MoveNext()) yield return null;
             GameObject terrainObject = new GameObject("Terrain", typeof(MeshFilter), typeof(MeshRenderer));
             terrainObject.transform.SetParent(root.transform, false);
             terrainObject.GetComponent<MeshFilter>().sharedMesh = ground;
@@ -80,16 +86,21 @@ namespace SortingStation
             chunk.Meshes.Add(ground);
             yield return null;
 
-            BuildTrack();
-            yield return null;
+            Stage = "track";
+            IEnumerator track = BuildTrack();
+            while (track.MoveNext()) yield return null;
+            Stage = "catenary";
             BuildCatenary();
             yield return null;
 
+            Stage = "structures";
             IEnumerator structures = BuildStructures();
             while (structures.MoveNext()) yield return null;
+            Stage = "emit";
             Emit(root.transform, "Built");
             yield return null;
 
+            Stage = "plants";
             IEnumerator plants = BuildVegetation(root.transform);
             while (plants.MoveNext()) yield return null;
             chunk.Complete = true;
@@ -123,7 +134,7 @@ namespace SortingStation
         };
         private static readonly Vector2[] RailHeadProfile = { new Vector2(-0.0675f, 0.293f), new Vector2(0.0675f, 0.293f) };
 
-        private void BuildTrack()
+        private IEnumerator BuildTrack()
         {
             for (int t = 0; t < 2; t++)
             {
@@ -136,6 +147,7 @@ namespace SortingStation
                     Sweep(meshes.For(WorldMaterials.Rail, 1f), plan.Start, plan.End, 2f, rail, RailProfileRight);
                     Sweep(meshes.For(WorldMaterials.RailHead, 1f), plan.Start, plan.End, 2f, rail, RailHeadProfile);
                 }
+                yield return null;
                 // Sleepers keep their global spacing, so they continue evenly across chunk borders.
                 const float pitch = 0.62f;
                 int first = Mathf.CeilToInt(plan.Start / pitch);
@@ -147,6 +159,7 @@ namespace SortingStation
                     meshes.For(wood ? WorldMaterials.WoodSleeper : WorldMaterials.ConcreteSleeper, 1f)
                         .AddBox(P(d, offset, 0.04f), new Vector3(2.62f, 0.16f, 0.245f), R(d));
                 }
+                yield return null;
             }
         }
 
@@ -249,6 +262,8 @@ namespace SortingStation
                     cardVertices, cardNormals, cardUvs, cardTriangles);
 
             // Candidate spots on a jittered grid in route coordinates; the grid widens away from the track.
+            // At most ~2 ms of it per frame.
+            System.Diagnostics.Stopwatch budget = System.Diagnostics.Stopwatch.StartNew();
             float x = 10f;
             while (x < MaxTreeReach)
             {
@@ -269,10 +284,14 @@ namespace SortingStation
                     }
                 }
                 x += stepX;
-                // A few bands of trees per frame.
-                if (Mathf.Repeat(x, 60f) < stepX) yield return null;
+                if (budget.Elapsed.TotalMilliseconds > 2.0)
+                {
+                    yield return null;
+                    budget.Restart();
+                }
             }
 
+            yield return null;
             chunk.NearDetail = new GameObject("NearTrees");
             chunk.NearDetail.transform.SetParent(root, false);
             foreach (Renderer renderer in near.Emit(chunk.NearDetail.transform, "Tree"))
@@ -280,6 +299,7 @@ namespace SortingStation
             chunk.NearCards = EmitCards(root, "NearTreeCards", nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles);
             yield return null;
             EmitCards(root, "TreeCards", cardVertices, cardNormals, cardUvs, cardTriangles);
+            yield return null;
             BuildGrass(root);
             if (chunk.NearCards != null) chunk.NearCards.SetActive(false);
         }

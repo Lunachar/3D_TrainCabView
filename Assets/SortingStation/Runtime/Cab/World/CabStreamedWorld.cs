@@ -54,6 +54,9 @@ namespace SortingStation
         public WorldTerrain Terrain => terrain;
         public Transform RouteRoot => routeRoot;
         public int LoadedChunkCount => chunks.Count;
+        /// <summary>The longest single step of a background chunk build so far (ms), for benchmarks.</summary>
+        public double LongestBuildStepMs { get; set; }
+        public string LongestBuildStep { get; private set; }
         public RouteSegmentDefinition CurrentSegment => SegmentFor(currentKind);
         public string CurrentSegmentName
         {
@@ -193,7 +196,22 @@ namespace SortingStation
             buildingChunk = chunk;
             IEnumerator steps = builder.Build(planner.Get(index), originX, originZ, routeRoot, chunk);
             double builtForX = originX, builtForZ = originZ;
-            while (steps.MoveNext()) yield return null;
+            System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
+            int step = 0;
+            while (true)
+            {
+                watch.Restart();
+                bool more = steps.MoveNext();
+                double ms = watch.Elapsed.TotalMilliseconds;
+                if (ms > LongestBuildStepMs)
+                {
+                    LongestBuildStepMs = ms;
+                    LongestBuildStep = planner.Get(index).Kind + "#" + step + ":" + builder.Stage;
+                }
+                step++;
+                if (!more) break;
+                yield return null;
+            }
             building = null;
             buildingIndex = -1;
             buildingChunk = null;

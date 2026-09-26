@@ -132,6 +132,10 @@ namespace SortingStation
         private IEnumerator CaptureRoutePreview()
         {
             yield return WaitForScene(SceneNames.MainMenu);
+            // -performance: the tablet's "3D: faster" profile (not saved to the player's settings).
+            if (Array.Exists(Environment.GetCommandLineArgs(), arg => string.Equals(arg, "-performance", StringComparison.OrdinalIgnoreCase)))
+                AppServices.Instance.Preferences.cabWorldQuality = CabWorldQuality.Performance;
+            Debug.Log("ROUTE_PREVIEW quality=" + AppServices.Instance.Preferences.cabWorldQuality);
             AppServices.Instance.Session.Select(GameMode.CabRide, 2);
             SceneManager.LoadScene(SceneNames.CabRide);
             yield return WaitForScene(SceneNames.CabRide);
@@ -364,6 +368,7 @@ namespace SortingStation
             Unity.Profiling.ProfilerRecorder draws = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
             Unity.Profiling.ProfilerRecorder setPass = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "SetPass Calls Count");
             Unity.Profiling.ProfilerRecorder triangles = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Triangles Count");
+            view.Streamed.LongestBuildStepMs = 0;
             float until = Time.realtimeSinceStartup + 20f;
             while (Time.realtimeSinceStartup < until)
             {
@@ -383,7 +388,8 @@ namespace SortingStation
             }
             Debug.Log("DRIVE " + label + " frames=" + frames + " avgFps=" + ((frames - 6) / Mathf.Max(0.01f, total)).ToString("0") +
                       " worstMs=" + (worst * 1000f).ToString("0") + " slowFrames=" + slow + " chunks=" + view.Streamed.LoadedChunkCount +
-                      " maxDraws=" + maxDraws + " maxSetPass=" + maxSetPass + " maxTrianglesK=" + (maxTriangles / 1000));
+                      " maxDraws=" + maxDraws + " maxSetPass=" + maxSetPass + " maxTrianglesK=" + (maxTriangles / 1000) +
+                      " longestBuildStepMs=" + view.Streamed.LongestBuildStepMs.ToString("0.0") + " (" + view.Streamed.LongestBuildStep + ")");
             draws.Dispose();
             setPass.Dispose();
             triangles.Dispose();

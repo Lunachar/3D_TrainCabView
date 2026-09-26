@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -255,6 +256,15 @@ namespace SortingStation
         /// </summary>
         public Mesh BuildChunkMesh(TrackPath path, WorldChunkPlan plan, double originX, double originZ, Vector3 chunkOrigin)
         {
+            Mesh result = null;
+            IEnumerator steps = BuildChunkMeshSteps(path, plan, originX, originZ, chunkOrigin, mesh => result = mesh);
+            while (steps.MoveNext()) { }
+            return result;
+        }
+
+        /// <summary>The chunk's ground a few rows at a time (the height function is sampled five times per vertex).</summary>
+        public IEnumerator BuildChunkMeshSteps(TrackPath path, WorldChunkPlan plan, double originX, double originZ, Vector3 chunkOrigin, System.Action<Mesh> done)
+        {
             List<float> rows = new List<float>();
             List<int> rowTunnel = new List<int>();
             const float rowStep = 4f;
@@ -314,6 +324,7 @@ namespace SortingStation
                     uv[i] = new Vector2((float)(wx - uvBaseX), (float)(wz - uvBaseZ));
                     uv1[i] = new Vector2(h, 0f);
                 }
+                if (r % 6 == 5) yield return null;
             }
 
             List<int> triangles = new List<int>(rows.Count * columns * 6);
@@ -341,7 +352,7 @@ namespace SortingStation
             mesh.uv2 = uv1;
             mesh.SetTriangles(triangles, 0);
             mesh.RecalculateBounds();
-            return mesh;
+            done(mesh);
         }
     }
 }
