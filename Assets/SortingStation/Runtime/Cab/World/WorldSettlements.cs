@@ -765,9 +765,13 @@ namespace SortingStation
             StationCrowd crowd = frame.gameObject.AddComponent<StationCrowd>();
             crowd.Configure(plan.Seed, new Vector3(PlatformEdge - 2.6f, 0f, -half - 3f), PlatformEdge, gnomes);
             WorldChunk owner = chunk;
+            // How far along the platform its roof reaches (no umbrellas under it).
+            float shelter = terminal ? half + 1f : plan.Station == StationStyle.Town ? 23f : plan.Station == StationStyle.Village ? 16f
+                : plan.Station == StationStyle.Halt || gnomes ? 3.5f : 0f;
             crowd.SpawnArrival = rng =>
             {
                 PersonAnimator person = SpawnPerson(frame, "Arriving", Vector3.zero, Quaternion.identity, rng, rng.NextDouble() < 0.12, null, gnomes);
+                person.ShelterHalfLength = shelter;
                 owner.Meshes.Add(person.GetComponentInChildren<SkinnedMeshRenderer>().sharedMesh);
                 return person;
             };
@@ -786,6 +790,7 @@ namespace SortingStation
                     : new Vector3(Range(PlatformEdge - 3.6f, PlatformEdge - 0.9f), 0f, z);
                 Quaternion facing = seated ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.Euler(0f, Range(20f, 160f), 0f);
                 PersonAnimator person = SpawnPerson(frame, "Passenger_" + plan.Index + "_" + i, platform, facing, rng2, i % 7 == 6, null, gnomes);
+                person.ShelterHalfLength = shelter;
                 person.StrollMin = new Vector2(PlatformEdge - 3.8f, platform.z - 5f);
                 person.StrollMax = new Vector2(PlatformEdge - 0.8f, platform.z + 5f);
                 if (seated) person.Sit(true);
@@ -797,6 +802,7 @@ namespace SortingStation
             {
                 Vector3 spot = new Vector3(SecondTrackOffset + 1.95f + Range(1.2f, 3.8f), 0f, Range(-30f, 30f));
                 PersonAnimator person = SpawnPerson(frame, "Waiting_" + i, spot, Quaternion.Euler(0f, Range(0f, 360f), 0f), rng2);
+                person.ShelterHalfLength = shelter;
                 person.StrollMin = new Vector2(SecondTrackOffset + 2.8f, spot.z - 6f);
                 person.StrollMax = new Vector2(SecondTrackOffset + 6.2f, spot.z + 6f);
             }

@@ -281,25 +281,28 @@ namespace SortingStation
                         if (terrain.RiverDepth(pd, px) > 0.8f) continue;
                         PlaceTree(near, pd, px, species, scale, nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles,
                             cardVertices, cardNormals, cardUvs, cardTriangles);
+                        if (budget.Elapsed.TotalMilliseconds > 2.0)
+                        {
+                            yield return null;
+                            budget.Restart();
+                        }
                     }
                 }
                 x += stepX;
-                if (budget.Elapsed.TotalMilliseconds > 2.0)
-                {
-                    yield return null;
-                    budget.Restart();
-                }
             }
 
             yield return null;
+            Stage = "near trees";
             chunk.NearDetail = new GameObject("NearTrees");
             chunk.NearDetail.transform.SetParent(root, false);
             foreach (Renderer renderer in near.Emit(chunk.NearDetail.transform, "Tree"))
                 chunk.Meshes.Add(renderer.GetComponent<MeshFilter>().sharedMesh);
             chunk.NearCards = EmitCards(root, "NearTreeCards", nearCardVertices, nearCardNormals, nearCardUvs, nearCardTriangles);
             yield return null;
+            Stage = "tree cards";
             EmitCards(root, "TreeCards", cardVertices, cardNormals, cardUvs, cardTriangles);
             yield return null;
+            Stage = "grass";
             BuildGrass(root);
             if (chunk.NearCards != null) chunk.NearCards.SetActive(false);
         }

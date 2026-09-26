@@ -40,6 +40,8 @@ namespace SortingStation
         /// <summary>False for people whose hands are busy (the station attendant).</summary>
         public bool UmbrellaAllowed { get; set; } = true;
         public bool UmbrellaOpen => umbrellaOpen;
+        /// <summary>On a platform: half the length of its roof around the platform centre (local z).</summary>
+        public float ShelterHalfLength { get; set; }
 
         /// <summary>Box (parent space, x/z) the person may stroll within.</summary>
         public Vector2 StrollMin { get; set; } = new Vector2(-2f, -2f);
@@ -123,7 +125,8 @@ namespace SortingStation
 
         private void UpdateUmbrella()
         {
-            bool want = UmbrellaAllowed && Rain > umbrellaThreshold;
+            bool sheltered = Mathf.Abs(transform.localPosition.z) < ShelterHalfLength;
+            bool want = UmbrellaAllowed && !sheltered && Rain > umbrellaThreshold;
             if (want == umbrellaOpen)
             {
                 umbrellaDecideAt = -1f;
